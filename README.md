@@ -27,7 +27,7 @@
 - [x] 实现 GUI 演示测试流程
 - [x] 实现学生测试记录和四六级成绩记录
 - [ ] 实现 Docker Compose 和 `deploy.sh`
-- [ ] 输出报告所需 CSV/JSON/图表
+- [x] 输出报告所需 CSV/JSON/图表
 - [ ] 整理课程报告材料
 
 ## 备注
@@ -59,6 +59,12 @@ PYTHONPATH=packages/estimator/src:packages/experiments/src python3 -m vocab_expe
 
 ```bash
 PYTHONPATH=packages/estimator/src:packages/experiments/src python3 -m vocab_experiments.stability --word-rank data/wordlists/word_rank.csv --output reports/outputs/stability.csv --unknown-ratios 0.1,0.2,0.3 --sample-lengths 200,300,400 --repeats 100
+```
+
+生成稳定性实验报告摘要和图表：
+
+```bash
+.venv/bin/python -m vocab_experiments.report_summary --input reports/outputs/stability.csv --csv reports/outputs/stability_summary.csv --json reports/outputs/stability_summary.json --svg reports/outputs/stability_chart.svg
 ```
 
 估计文本语料：

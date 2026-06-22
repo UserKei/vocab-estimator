@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 from vocab_experiments.batch import run_batch
+from vocab_experiments.report_summary import summarize_stability
 from vocab_experiments.stability import run_stability_experiment
 from vocab_experiments.text_estimate import estimate_text_file, estimate_text_files
 from vocab_experiments.word_rank import build_word_rank
@@ -167,6 +168,35 @@ class ExperimentsToolsTests(unittest.TestCase):
             with output.open("r", encoding="utf-8") as handle:
                 rows = list(csv.DictReader(handle))
             self.assertEqual(len(rows), 2)
+
+    def test_summarize_stability_writes_report_csv_json_and_svg(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            stability = tmp_path / "stability.csv"
+            summary_csv = tmp_path / "stability_summary.csv"
+            summary_json = tmp_path / "stability_summary.json"
+            chart_svg = tmp_path / "stability_chart.svg"
+            stability.write_text(
+                "unknown_ratio,sample_length,repeat,estimate,range_low,range_high,confidence,sample_size\n"
+                "0.1,200,1,9000,8500,9500,0.9,200\n"
+                "0.1,200,2,8800,8300,9300,0.8,200\n"
+                "0.2,200,1,7600,7000,8200,0.7,200\n",
+                encoding="utf-8",
+            )
+
+            rows = summarize_stability(stability, summary_csv, summary_json, chart_svg)
+
+            self.assertEqual(len(rows), 2)
+            self.assertEqual(rows[0].unknown_ratio, 0.1)
+            self.assertEqual(rows[0].sample_length, 200)
+            self.assertEqual(rows[0].runs, 2)
+            self.assertEqual(rows[0].estimate_mean, 8900)
+            self.assertEqual(rows[0].confidence_mean, 0.85)
+            with summary_csv.open("r", encoding="utf-8") as handle:
+                csv_rows = list(csv.DictReader(handle))
+            self.assertEqual(csv_rows[0]["estimate_mean"], "8900")
+            self.assertIn('"unknown_ratio": 0.1', summary_json.read_text(encoding="utf-8"))
+            self.assertTrue(chart_svg.read_text(encoding="utf-8").startswith("<svg"))
 
 
 if __name__ == "__main__":

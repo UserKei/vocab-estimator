@@ -1,0 +1,92 @@
+[
+  {
+    "unknown_ratio": 0.1,
+    "sample_length": 200,
+    "runs": 100,
+    "estimate_mean": 8914.05,
+    "estimate_variance": 39057.168,
+    "range_low_mean": 8914.05,
+    "range_high_mean": 8914.05,
+    "confidence_mean": 0.9
+  },
+  {
+    "unknown_ratio": 0.1,
+    "sample_length": 300,
+    "runs": 100,
+    "estimate_mean": 8965.6,
+    "estimate_variance": 25268.16,
+    "range_low_mean": 8965.6,
+    "range_high_mean": 8965.6,
+    "confidence_mean": 0.9
+  },
+  {
+    "unknown_ratio": 0.1,
+    "sample_length": 400,
+    "runs": 100,
+    "estimate_mean": 8983.51,
+    "estimate_variance": 17688.87,
+    "range_low_mean": 8983.51,
+    "range_high_mean": 8983.51,
+    "confidence_mean": 0.9
+  },
+  {
+    "unknown_ratio": 0.2,
+    "sample_length": 200,
+    "runs": 100,
+    "estimate_mean": 7920.14,
+    "estimate_variance": 52634.8,
+    "range_low_mean": 7920.14,
+    "range_high_mean": 7920.14,
+    "confidence_mean": 0.9
+  },
+  {
+    "unknown_ratio": 0.2,
+    "sample_length": 300,
+    "runs": 100,
+    "estimate_mean": 7994.22,
+    "estimate_variance": 45150.832,
+    "range_low_mean": 7994.22,
+    "range_high_mean": 7994.22,
+    "confidence_mean": 0.9
+  },
+  {
+    "unknown_ratio": 0.2,
+    "sample_length": 400,
+    "runs": 100,
+    "estimate_mean": 7997.62,
+    "estimate_variance": 39250.316,
+    "range_low_mean": 7997.62,
+    "range_high_mean": 7997.62,
+    "confidence_mean": 0.9
+  },
+  {
+    "unknown_ratio": 0.3,
+    "sample_length": 200,
+    "runs": 100,
+    "estimate_mean": 6974.25,
+    "estimate_variance": 97237.107,
+    "range_low_mean": 6974.25,
+    "range_high_mean": 6974.25,
+    "confidence_mean": 0.9
+  },
+  {
+    "unknown_ratio": 0.3,
+    "sample_length": 300,
+    "runs": 100,
+    "estimate_mean": 6982.81,
+    "estimate_variance": 53806.714,
+    "range_low_mean": 6982.81,
+    "range_high_mean": 6982.81,
+    "confidence_mean": 0.9
+  },
+  {
+    "unknown_ratio": 0.3,
+    "sample_length": 400,
+    "runs": 100,
+    "estimate_mean": 6980.14,
+    "estimate_variance": 49800.8,
+    "range_low_mean": 6980.14,
+    "range_high_mean": 6980.14,
+    "confidence_mean": 0.9
+  }
+]
