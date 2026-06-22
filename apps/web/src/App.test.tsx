@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs"
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { App } from "./App"
@@ -67,6 +68,12 @@ describe("App", () => {
     expect(screen.getByText("批处理")).toBeInTheDocument()
     expect(screen.getByText("学生记录")).toBeInTheDocument()
     expect(screen.getByText("实验输出")).toBeInTheDocument()
+  })
+
+  it("keeps the Tailwind v4 stylesheet entrypoint enabled", () => {
+    const stylesheet = readFileSync("src/index.css", "utf8")
+
+    expect(stylesheet).toContain('@import "tailwindcss";')
   })
 
   it("loads generated test words from the API instead of a fixed frontend list", async () => {
