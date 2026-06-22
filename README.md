@@ -15,10 +15,10 @@
 - [x] 初始化 monorepo 项目骨架
 - [ ] 初始化 FastAPI 后端
 - [ ] 初始化 React + Vite + shadcn/ui 前端
-- [ ] 设计并生成 `data/wordlists/word_rank.csv`
+- [x] 设计并生成 `data/wordlists/word_rank.csv`
 - [x] 实现词汇量估算核心算法
 - [x] 实现 bootstrap 范围和置信度
-- [ ] 实现 CSV 后台批处理
+- [x] 实现 CSV 后台批处理
 - [ ] 实现 900 次稳定性实验
 - [ ] 实现四类测试语料估计输出
 - [ ] 实现 PostgreSQL + SQLModel + Alembic 数据保存
@@ -32,3 +32,23 @@
 
 - 每次完成项目事项后，需要同步勾选或补充本待办事项。
 - `ref/` 下仓库仅作为参考，不作为项目源码的一部分。
+
+## 当前可用命令
+
+运行测试：
+
+```bash
+PYTHONPATH=packages/estimator/src:packages/experiments/src python3 -m unittest discover -s tests -v
+```
+
+重新生成词表：
+
+```bash
+PYTHONPATH=packages/estimator/src:packages/experiments/src python3 -m vocab_experiments.word_rank --source ../ref/google-10000-english/google-10000-english.txt --output data/wordlists/word_rank.csv --source-name google_10000
+```
+
+批处理估算：
+
+```bash
+PYTHONPATH=packages/estimator/src:packages/experiments/src python3 -m vocab_experiments.batch --responses input.csv --word-rank data/wordlists/word_rank.csv --output output.csv
+```

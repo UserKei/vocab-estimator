@@ -1,0 +1,62 @@
+from __future__ import annotations
+
+import csv
+import tempfile
+import unittest
+from pathlib import Path
+
+from vocab_experiments.batch import run_batch
+from vocab_experiments.word_rank import build_word_rank
+
+
+class ExperimentsToolsTests(unittest.TestCase):
+    def test_build_word_rank_creates_ranked_csv_from_word_list(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "words.txt"
+            output = Path(tmp) / "word_rank.csv"
+            source.write_text("the\nApple\napple\nrare-word\n", encoding="utf-8")
+
+            count = build_word_rank(source, output, source_name="fixture")
+
+            self.assertEqual(count, 3)
+            with output.open("r", encoding="utf-8") as handle:
+                rows = list(csv.DictReader(handle))
+            self.assertEqual([row["word"] for row in rows], ["the", "apple", "rare"])
+            self.assertEqual([row["rank"] for row in rows], ["1", "2", "3"])
+            self.assertEqual(rows[0]["source"], "fixture")
+
+    def test_run_batch_reads_responses_and_writes_single_result_row(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            word_rank = tmp_path / "word_rank.csv"
+            responses = tmp_path / "responses.csv"
+            output = tmp_path / "result.csv"
+            word_rank.write_text(
+                "word,rank,frequency,source\n"
+                "alpha,100,0.0,fixture\n"
+                "bravo,200,0.0,fixture\n"
+                "charlie,300,0.0,fixture\n"
+                "delta,400,0.0,fixture\n",
+                encoding="utf-8",
+            )
+            responses.write_text(
+                "word,status\n"
+                "alpha,known\n"
+                "bravo,known\n"
+                "charlie,unknown\n"
+                "delta,unknown\n",
+                encoding="utf-8",
+            )
+
+            result = run_batch(responses, word_rank, output_csv=output, bootstrap_iterations=0)
+
+            self.assertEqual(result.estimate, 200)
+            with output.open("r", encoding="utf-8") as handle:
+                rows = list(csv.DictReader(handle))
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]["estimate"], "200")
+            self.assertEqual(rows[0]["method"], "rank_midpoint_bootstrap_v1")
+
+
+if __name__ == "__main__":
+    unittest.main()
