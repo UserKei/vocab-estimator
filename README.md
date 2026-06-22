@@ -28,6 +28,7 @@
 - [x] 实现 GUI 演示测试流程
 - [x] 实现学生测试记录和四六级成绩记录
 - [x] 实现 Docker Compose 和 `deploy.sh`
+- [x] Web 服务使用默认 HTTP 80 端口，方便同学直接访问
 - [x] 增加 Ubuntu 服务器部署前准备脚本，安装 Docker/Compose 并为 2G 内存配置 swap
 - [x] 输出报告所需 CSV/JSON/图表
 - [x] 整理课程报告材料
@@ -193,6 +194,20 @@ sudo DOCKER_REGISTRY_MIRRORS=https://mirror.ccs.tencentyun.com ./prepare-server.
 
 ```bash
 COMPOSE_PARALLEL_LIMIT=1 ./deploy.sh
+```
+
+部署后访问地址：
+
+```text
+http://服务器公网IP/
+```
+
+服务器安全组至少放行：
+
+```text
+80/tcp   Web 前端页面，给同学访问
+22/tcp   SSH，只建议放行自己的 IP
+8000/tcp API 接口，可选；只访问页面时不需要公网开放
 ```
 
 Docker 相关命令需要 Docker daemon 正在运行；当前可先用 `docker compose config --quiet` 校验配置格式。`prepare-server.sh` 如果把当前用户加入了 `docker` 组，需要重新登录后再直接运行 Docker 命令。
