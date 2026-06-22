@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from sqlmodel import Session, select
 
-from .models import EstimateResponse, StudentResult
+from vocab_estimator.models import EstimateResult
+
+from .models import BatchJob, EstimateResponse, StudentResult
 from .schemas import StudentResultCreate
 
 
@@ -37,3 +39,24 @@ def list_student_results(session: Session) -> list[StudentResult]:
     statement = select(StudentResult).order_by(StudentResult.created_at.desc())
     return list(session.exec(statement).all())
 
+
+def create_batch_job(
+    session: Session,
+    *,
+    filename: str,
+    result: EstimateResult,
+    row_count: int,
+) -> BatchJob:
+    record = BatchJob(
+        filename=filename,
+        estimate=result.estimate,
+        range_low=result.range_low,
+        range_high=result.range_high,
+        confidence=result.confidence,
+        row_count=row_count,
+        ignored_count=len(result.ignored_words),
+    )
+    session.add(record)
+    session.commit()
+    session.refresh(record)
+    return record

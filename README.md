@@ -19,6 +19,7 @@
 - [x] 实现词汇量估算核心算法
 - [x] 实现 bootstrap 范围和置信度
 - [x] 实现 CSV 后台批处理
+- [x] 实现批处理和实验 API 入口
 - [x] 实现 900 次稳定性实验
 - [x] 实现文本语料估计工具
 - [ ] 实现四类测试语料估计输出
@@ -76,6 +77,28 @@ PYTHONPATH=packages/estimator/src:packages/experiments/src python3 -m vocab_expe
 
 ```bash
 .venv/bin/python -m vocab_api
+```
+
+API 批处理上传：
+
+```bash
+curl -F "file=@input.csv" http://127.0.0.1:8000/api/batch
+```
+
+API 触发稳定性实验：
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/experiments/stability \
+  -H "Content-Type: application/json" \
+  -d '{"output_path":"reports/outputs/stability.csv","unknown_ratios":[0.1,0.2,0.3],"sample_lengths":[200,300,400],"repeats":100}'
+```
+
+API 触发文本语料估计：
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/experiments/text-estimate \
+  -H "Content-Type: application/json" \
+  -d '{"text_paths":["data/samples/C.txt","data/samples/F.txt","data/samples/P.txt","data/samples/K.txt"],"output_path":"reports/outputs/text_estimates.csv"}'
 ```
 
 运行前端测试：

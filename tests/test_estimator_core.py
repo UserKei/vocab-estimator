@@ -11,6 +11,7 @@ from vocab_estimator import (
     load_word_ranks,
     normalize_word,
     parse_response_csv,
+    parse_response_csv_text,
     tokenize,
 )
 
@@ -53,6 +54,14 @@ class EstimatorCoreTests(unittest.TestCase):
                 ("recite", True),
                 ("oblivion", False),
             ],
+        )
+
+    def test_parse_response_csv_text_accepts_uploaded_csv_content(self) -> None:
+        responses = parse_response_csv_text("word,status\napple,known\nrare,unknown\n")
+
+        self.assertEqual(
+            [(response.word, response.known) for response in responses],
+            [("apple", True), ("rare", False)],
         )
 
     def test_estimate_vocabulary_uses_rank_threshold_and_ignores_missing_words(self) -> None:
@@ -143,4 +152,3 @@ def _write_csv(content: str) -> Path:
 
 if __name__ == "__main__":
     unittest.main()
-

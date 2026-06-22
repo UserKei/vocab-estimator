@@ -24,6 +24,52 @@ class EstimateResultOut(BaseModel):
     ignored_words: list[str]
 
 
+class BatchJobOut(BaseModel):
+    id: int
+    filename: str
+    estimate: int
+    range_low: int
+    range_high: int
+    confidence: float
+    row_count: int
+    ignored_count: int
+    created_at: datetime
+
+
+class StabilityExperimentRequest(BaseModel):
+    output_path: str = "reports/outputs/stability.csv"
+    unknown_ratios: list[float] = Field(default_factory=lambda: [0.1, 0.2, 0.3])
+    sample_lengths: list[int] = Field(default_factory=lambda: [200, 300, 400])
+    repeats: int = 100
+
+
+class StabilityExperimentOut(BaseModel):
+    output_path: str
+    rows_written: int
+
+
+class TextEstimateRequest(BaseModel):
+    text_paths: list[str] = Field(min_length=1)
+    output_path: str = "reports/outputs/text_estimates.csv"
+
+
+class TextEstimateRow(BaseModel):
+    text_path: str
+    estimate: int
+    range_low: int
+    range_high: int
+    confidence: float
+    method: str
+    unique_words: int
+    matched_words: int
+    ignored_words: list[str]
+
+
+class TextEstimateOut(BaseModel):
+    output_path: str
+    results: list[TextEstimateRow]
+
+
 class StudentResultCreate(BaseModel):
     student_code: str = Field(min_length=1)
     cet4_score: int | None = None
@@ -51,4 +97,3 @@ class StudentResultOut(BaseModel):
 
 class HealthOut(BaseModel):
     status: str
-

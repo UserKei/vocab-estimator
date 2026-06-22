@@ -64,6 +64,53 @@ class ApiAppTests(unittest.TestCase):
                     self.assertEqual(list_response.status_code, 200)
                     self.assertEqual(len(list_response.json()), 1)
 
+                    batch_response = client.post(
+                        "/api/batch",
+                        files={
+                            "file": (
+                                "responses.csv",
+                                "word,status\nalpha,known\nbravo,known\ncharlie,unknown\ndelta,unknown\n",
+                                "text/csv",
+                            )
+                        },
+                    )
+                    self.assertEqual(batch_response.status_code, 200)
+                    batch = batch_response.json()
+                    self.assertEqual(batch["filename"], "responses.csv")
+                    self.assertEqual(batch["estimate"], 200)
+                    self.assertEqual(batch["row_count"], 4)
+
+                    stability_output = tmp_path / "stability.csv"
+                    stability_response = client.post(
+                        "/api/experiments/stability",
+                        json={
+                            "output_path": str(stability_output),
+                            "unknown_ratios": [0.25],
+                            "sample_lengths": [4],
+                            "repeats": 2,
+                        },
+                    )
+                    self.assertEqual(stability_response.status_code, 200)
+                    self.assertEqual(stability_response.json()["rows_written"], 2)
+                    self.assertTrue(stability_output.exists())
+
+                    text_path = tmp_path / "sample.txt"
+                    text_output = tmp_path / "text_estimates.csv"
+                    text_path.write_text("alpha bravo charlie delta", encoding="utf-8")
+                    text_response = client.post(
+                        "/api/experiments/text-estimate",
+                        json={
+                            "text_paths": [str(text_path)],
+                            "output_path": str(text_output),
+                        },
+                    )
+                    self.assertEqual(text_response.status_code, 200)
+                    text_result = text_response.json()["results"][0]
+                    self.assertEqual(text_result["text_path"], str(text_path))
+                    self.assertEqual(text_result["unique_words"], 4)
+                    self.assertEqual(text_result["matched_words"], 4)
+                    self.assertTrue(text_output.exists())
+
 
 class _patched_env:
     def __init__(self, word_rank: Path, database: Path) -> None:
