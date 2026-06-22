@@ -11,13 +11,13 @@
 - [x] 建立中文 agent 协作约定，并要求后续更新同步维护 README 待办事项
 - [x] 明确 `vocab-estimator/` 是项目 Git 仓库根目录，提交在项目目录内完成
 - [x] 初始化 `vocab-estimator/` Git 仓库并完成项目说明初始提交
-- [ ] 清理早期测试草稿和缓存文件
-- [ ] 初始化 monorepo 项目骨架
+- [x] 清理早期测试草稿和缓存文件
+- [x] 初始化 monorepo 项目骨架
 - [ ] 初始化 FastAPI 后端
 - [ ] 初始化 React + Vite + shadcn/ui 前端
 - [ ] 设计并生成 `data/wordlists/word_rank.csv`
-- [ ] 实现词汇量估算核心算法
-- [ ] 实现 bootstrap 范围和置信度
+- [x] 实现词汇量估算核心算法
+- [x] 实现 bootstrap 范围和置信度
 - [ ] 实现 CSV 后台批处理
 - [ ] 实现 900 次稳定性实验
 - [ ] 实现四类测试语料估计输出
