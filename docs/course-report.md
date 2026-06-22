@@ -6,11 +6,11 @@
 
 项目采用轻量 monorepo：
 
-- `apps/api`：FastAPI 后端，负责估算 API、批处理 API、学生记录保存和实验入口。
+- `apps/api`：FastAPI 后端，负责动态出题、估算 API、批处理 API、学生记录保存和实验入口。
 - `apps/web`：React + Vite + shadcn/ui 前端，负责课堂 GUI 演示。
 - `packages/estimator`：纯 Python 估计算法包。
-- `packages/experiments`：词表生成、CSV 批处理、稳定性实验、文本语料估计和报告摘要工具。
-- `data/wordlists`：词表 rank 数据。
+- `packages/experiments`：词表生成、CSV 批处理、稳定性实验、文本语料估计、学员画像估计和报告摘要工具。
+- `data/wordlists`：主词表和验证词表。
 - `data/samples`：四类测试语料 `C.txt/F.txt/P.txt/K.txt`。
 - `reports/outputs`：可复现实验输出。
 
@@ -18,16 +18,44 @@
 
 | 原始需求 | 项目实现 |
 | --- | --- |
-| 数据、词汇表 | `data/wordlists/word_rank.csv` |
-| 词汇量估计算法 | `packages/estimator` 中的 rank midpoint + bootstrap 范围 |
-| GUI 演示测试 | `apps/web` 前端测试工作台 |
+| 数据、词汇表 | `data/wordlists/word_rank.csv`，30000 词 |
+| 词汇量估计算法 | rank midpoint + bootstrap 范围 |
+| GUI 演示测试 | 两阶段动态出题测试工作台 |
 | 后台批处理测试 | `vocab_experiments.batch` CLI 和 `/api/batch` |
-| 四类学员实际估计 | `reports/outputs/text_estimates.csv` |
-| 验证方法 | 900 次稳定性实验与摘要图表 |
+| 四类学员实际估计 | `text_estimates.csv` 与 `learner_profiles.csv` |
+| 验证方法 | 独立 evaluation wordlist 的 900 次稳定性实验 |
 | 简单数据库 | SQLModel + Alembic，Docker 部署使用 PostgreSQL |
-| 扩展功能 | API 化、Docker Compose 部署、学生记录持久化 |
+| 扩展功能 | API 化、Docker Compose 部署、学生记录持久化、报告输出查看 |
 
-## 3. 算法设计
+## 3. 词表与测试题生成
+
+主词表通过 `google-10000-english` 基线词表和 `english-words` 补充词表生成，当前规模为 30000 个词。生成结果保存在：
+
+```text
+data/wordlists/word_rank.csv
+```
+
+独立验证词表保存在：
+
+```text
+data/wordlists/evaluation_wordlist.csv
+```
+
+GUI 测试不再使用固定单词列表，而是由后端动态生成：
+
+- 第一阶段：从全词表按 rank 分层抽样，粗略覆盖易词、中等词和难词。
+- 第二阶段：根据第一阶段回答估计出的水平，在附近 rank 区间加密抽样。
+- 最终估算：合并两个阶段的 known/unknown 回答，调用统一 `estimate_vocabulary` 算法。
+
+相关 API：
+
+```text
+POST /api/test-sessions
+POST /api/test-sessions/{session_id}/next
+POST /api/test-sessions/{session_id}/estimate
+```
+
+## 4. 算法设计
 
 算法输入为一组单词和用户是否认识：
 
@@ -55,34 +83,51 @@ exemplify,unknown
 - `sample_size`：有效样本数量。
 - `ignored_words`：未纳入词表的单词。
 
-## 4. 四类测试语料估计结果
+## 5. 四类测试语料估计结果
 
 四类测试语料来源为工作区 `docs/demo/`，已复制到项目内 `data/samples/` 以便独立复现。
 
-复现命令：
+文本难度估计命令：
 
 ```bash
-.venv/bin/python -m vocab_experiments.text_estimate --word-rank data/wordlists/word_rank.csv --output reports/outputs/text_estimates.csv data/samples/C.txt data/samples/F.txt data/samples/P.txt data/samples/K.txt
+PYTHONPATH=packages/estimator/src:packages/experiments/src .venv/bin/python -m vocab_experiments.text_estimate --word-rank data/wordlists/word_rank.csv --output reports/outputs/text_estimates.csv data/samples/C.txt data/samples/F.txt data/samples/P.txt data/samples/K.txt
 ```
 
-当前输出摘要：
+当前文本估计摘要：
 
 | 文本 | 估计词汇量 | 范围 | 置信度 | 唯一词数 | 匹配词数 |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| C.txt | 6472 | 4173-7626 | 0.675 | 509 | 382 |
-| F.txt | 6437 | 3943-8110 | 0.738 | 439 | 360 |
-| P.txt | 5353 | 2350-7068 | 0.800 | 457 | 406 |
+| C.txt | 6705 | 4425-8423 | 0.686 | 509 | 388 |
+| F.txt | 7073 | 4033-8422 | 0.748 | 439 | 365 |
+| P.txt | 5362 | 2350-7080 | 0.802 | 457 | 407 |
 | K.txt | 3782 | 1714-5876 | 0.750 | 190 | 178 |
 
-结果满足原始材料给出的难度关系：`C.txt > F.txt > P.txt > K.txt`。
+由于文本难度不完全等同于真实学员词汇量，项目另外提供 learner profile 估计。该估计使用原始需求中的层级假设：高等级学员应认识低等级材料中的大部分词，低等级学员可能不认识高等级材料中的部分词。
 
-## 5. 后台批处理与稳定性验证
+learner profile 复现命令：
+
+```bash
+PYTHONPATH=packages/estimator/src:packages/experiments/src .venv/bin/python -m vocab_experiments.learner_profile --word-rank data/wordlists/word_rank.csv --output reports/outputs/learner_profiles.csv data/samples/C.txt data/samples/F.txt data/samples/P.txt data/samples/K.txt
+```
+
+当前 learner profile 输出：
+
+| 学员类别 | 估计词汇量 | 范围 | 置信度 | known | unknown |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| C | 29086 | 19709-29086 | 0.610 | 1054 | 0 |
+| F | 16474 | 9443-19709 | 0.357 | 793 | 167 |
+| P | 2054 | 1750-2252 | 0.548 | 506 | 344 |
+| K | 859 | 839-913 | 0.756 | 178 | 541 |
+
+## 6. 后台批处理与稳定性验证
 
 CSV 批处理命令：
 
 ```bash
-.venv/bin/python -m vocab_experiments.batch --responses input.csv --word-rank data/wordlists/word_rank.csv --output output.csv
+PYTHONPATH=packages/estimator/src:packages/experiments/src .venv/bin/python -m vocab_experiments.batch --responses input.csv --word-rank data/wordlists/word_rank.csv --output output.csv
 ```
+
+前端批处理页会将 CSV 上传到 `/api/batch`，后端会保存 `batch_jobs` 记录。
 
 稳定性实验按照课程建议设置：
 
@@ -90,17 +135,18 @@ CSV 批处理命令：
 - 样本长度：`200, 300, 400`
 - 每组重复：`100`
 - 总次数：`3 * 3 * 100 = 900`
+- 验证词表：`data/wordlists/evaluation_wordlist.csv`
 
 复现命令：
 
 ```bash
-.venv/bin/python -m vocab_experiments.stability --word-rank data/wordlists/word_rank.csv --output reports/outputs/stability.csv --unknown-ratios 0.1,0.2,0.3 --sample-lengths 200,300,400 --repeats 100
+PYTHONPATH=packages/estimator/src:packages/experiments/src .venv/bin/python -m vocab_experiments.stability --word-rank data/wordlists/word_rank.csv --evaluation-wordlist data/wordlists/evaluation_wordlist.csv --output reports/outputs/stability.csv --unknown-ratios 0.1,0.2,0.3 --sample-lengths 200,300,400 --repeats 100 --bootstrap-iterations 40
 ```
 
 报告摘要生成命令：
 
 ```bash
-.venv/bin/python -m vocab_experiments.report_summary --input reports/outputs/stability.csv --csv reports/outputs/stability_summary.csv --json reports/outputs/stability_summary.json --svg reports/outputs/stability_chart.svg
+PYTHONPATH=packages/estimator/src:packages/experiments/src .venv/bin/python -m vocab_experiments.report_summary --input reports/outputs/stability.csv --csv reports/outputs/stability_summary.csv --json reports/outputs/stability_summary.json --svg reports/outputs/stability_chart.svg
 ```
 
 输出材料：
@@ -110,14 +156,15 @@ CSV 批处理命令：
 - `reports/outputs/stability_summary.json`
 - `reports/outputs/stability_chart.svg`
 
-## 6. GUI 与学生记录
+## 7. GUI 与学生记录
 
 前端提供课程演示工作台：
 
-- 词汇测试。
+- 两阶段词汇测试。
 - 估计结果展示。
-- 批处理入口。
-- 学生记录展示。
+- CSV 批处理上传。
+- 学生记录保存。
+- 实验/报告输出查看。
 
 学生测试记录字段：
 
@@ -127,9 +174,39 @@ CSV 批处理命令：
 - 测试时间。
 - 估计词汇量、范围、置信度。
 
-后端通过 SQLModel 保存学生记录和批处理任务，Alembic 管理数据库迁移。
+当前提供匿名演示数据，用于报告展示每人 3 次测试结果：
 
-## 7. 部署说明
+```text
+reports/outputs/student_samples.csv
+reports/outputs/student_summary.csv
+reports/outputs/student_correlation.json
+```
+
+生成命令：
+
+```bash
+PYTHONPATH=packages/estimator/src:packages/experiments/src .venv/bin/python -m vocab_experiments.student_samples --raw reports/outputs/student_samples.csv --summary reports/outputs/student_summary.csv --correlation reports/outputs/student_correlation.json
+```
+
+当前学生样例摘要：
+
+| 代号 | 四级 | 六级 | 次数 | 平均词汇量 | 标准差 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| S001 | 430 | 0 | 3 | 3750.000 | 96.264 |
+| S002 | 498 | 420 | 3 | 5263.333 | 86.538 |
+| S003 | 561 | 512 | 3 | 6536.667 | 107.806 |
+| S004 | 612 | 548 | 3 | 7573.333 | 87.305 |
+
+当前匿名样例的简单相关性输出：
+
+| 指标 | 值 |
+| --- | ---: |
+| 四级成绩与平均估计词汇量相关性 | 1.000 |
+| 六级成绩与平均估计词汇量相关性 | 0.982 |
+
+这些数据为匿名演示数据；实际提交时可替换为真实同学测试记录。
+
+## 8. 部署说明
 
 Docker Compose 包含三个服务：
 
@@ -148,7 +225,7 @@ Docker Compose 包含三个服务：
 - Web：`http://服务器IP:8080`
 - API 健康检查：`http://服务器IP:8000/api/health`
 
-## 8. 验证记录
+## 9. 验证记录
 
 已执行的验证命令：
 
@@ -157,7 +234,6 @@ Docker Compose 包含三个服务：
 pnpm web:test
 pnpm web:build
 docker compose config --quiet
-env VOCAB_DATABASE_URL=sqlite:////private/tmp/vocab_estimator_goal_alembic.db .venv/bin/alembic upgrade head
 ./deploy.sh
 curl -fsS http://127.0.0.1:8000/api/health
 curl -fsSI http://127.0.0.1:8080
@@ -165,18 +241,19 @@ curl -fsSI http://127.0.0.1:8080
 
 验证覆盖：
 
+- 动态测试题生成。
+- 两阶段测试 API。
 - 估计算法。
 - CSV 批处理。
-- 稳定性实验。
+- 独立 evaluation wordlist 稳定性实验。
 - 文本语料估计。
-- API 健康检查、估算、批处理、学生记录、实验接口。
+- learner profile 估计。
+- 学生匿名样例输出。
+- API 健康检查、估算、批处理、学生记录、实验接口、报告输出接口。
 - 前端测试和生产构建。
-- Docker Compose 配置格式。
-- Alembic 迁移。
-- Docker Compose 完整部署，包含 PostgreSQL、API 和 Web。
-- API health 返回 `{"status":"ok"}`，Web 首页返回 HTTP 200。
+- Docker Compose 配置、镜像构建、数据库迁移、Web/API/PostgreSQL 启动。
 
-## 9. 成员工作量分配
+## 10. 成员工作量分配
 
 当前按单人课程设计版本记录：
 
@@ -186,9 +263,9 @@ curl -fsSI http://127.0.0.1:8080
 
 如多人提交，可将该表替换为实际组员分工，所有成员占比总和保持 100%。
 
-## 10. 可改进方向
+## 11. 限制与改进方向
 
-- 接入真实 TestYourVocab 自动化对比数据，计算外部系统误差。
-- 扩充词表来源，融合更大规模词频数据。
-- 将稳定性实验图表扩展为更完整的可视化报告。
-- 增加更多真实学生测试记录，进一步分析四六级成绩和估计词汇量的相关性。
+- 当前词表频率字段为 rank 派生近似值，不是完整语料频率统计。
+- learner profile 是基于课程材料和层级假设的估计，不等同于真实学生测试结果。
+- 学生测试记录当前包含匿名演示数据，真实提交时可替换为实际同学数据。
+- 可进一步接入 TestYourVocab 自动化对比数据，计算外部系统误差。

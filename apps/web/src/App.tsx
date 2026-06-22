@@ -1,6 +1,18 @@
 import { useEffect, useMemo, useState } from "react"
 import { BookOpenCheck, Database, RotateCcw, Save, Upload } from "lucide-react"
-import { estimateVocabulary, listStudentResults, saveStudentResult, type EstimateResult, type StudentResult } from "./api"
+import {
+  createTestSession,
+  estimateTestSession,
+  fetchReportOutputs,
+  listStudentResults,
+  requestNextStage,
+  saveStudentResult,
+  uploadBatchCsv,
+  type EstimateResult,
+  type ReportOutputs,
+  type StudentResult,
+  type TestSession,
+} from "./api"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -11,39 +23,34 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 
-const initialWords = [
-  "apple",
-  "however",
-  "research",
-  "economy",
-  "recite",
-  "exemplify",
-  "oblivion",
-  "meticulous",
-]
-
 type ResponseMap = Record<string, boolean | undefined>
 
 export function App() {
+  const [session, setSession] = useState<TestSession | null>(null)
   const [responses, setResponses] = useState<ResponseMap>({})
   const [estimate, setEstimate] = useState<EstimateResult | null>(null)
-  const [batchText, setBatchText] = useState("apple,known\nrecite,known\nexemplify,unknown\noblivion,unknown")
+  const [batchText, setBatchText] = useState("word,status\n")
   const [studentCode, setStudentCode] = useState("S001")
   const [cet4Score, setCet4Score] = useState("")
   const [cet6Score, setCet6Score] = useState("")
   const [studentResults, setStudentResults] = useState<StudentResult[]>([])
+  const [reports, setReports] = useState<ReportOutputs | null>(null)
   const [message, setMessage] = useState("")
   const [isBusy, setIsBusy] = useState(false)
+  const [activeTab, setActiveTab] = useState("test")
 
-  const answeredCount = Object.values(responses).filter((value) => value !== undefined).length
-  const progress = (answeredCount / initialWords.length) * 100
+  const currentWords = session?.words ?? []
+  const answeredCount = currentWords.filter((word) => responses[word.word] !== undefined).length
+  const progress = currentWords.length ? (answeredCount / currentWords.length) * 100 : 0
   const responsePayload = useMemo(
-    () => initialWords.flatMap((word) => (responses[word] === undefined ? [] : [{ word, known: Boolean(responses[word]) }])),
+    () => Object.entries(responses).flatMap(([word, known]) => (known === undefined ? [] : [{ word, known: Boolean(known) }])),
     [responses],
   )
 
   useEffect(() => {
+    void startNewTest()
     void refreshStudentResults()
+    void refreshReports()
   }, [])
 
   async function refreshStudentResults() {
@@ -54,15 +61,49 @@ export function App() {
     }
   }
 
-  async function runEstimate() {
+  async function refreshReports() {
+    try {
+      setReports(await fetchReportOutputs())
+    } catch {
+      setReports(null)
+    }
+  }
+
+  async function startNewTest() {
+    setIsBusy(true)
     setMessage("")
-    if (responsePayload.length === 0) {
-      setMessage("请至少标记一个单词")
+    setEstimate(null)
+    setResponses({})
+    try {
+      setSession(await createTestSession(Date.now() % 100000))
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "测试题生成失败")
+      setSession(null)
+    } finally {
+      setIsBusy(false)
+    }
+  }
+
+  async function submitCurrentStage() {
+    if (!session) {
+      setMessage("请先生成测试题")
+      return
+    }
+    if (!currentWords.length || answeredCount < currentWords.length) {
+      setMessage("请完成当前阶段的全部标记")
       return
     }
     setIsBusy(true)
+    setMessage("")
     try {
-      setEstimate(await estimateVocabulary(responsePayload))
+      if (session.stage === 1) {
+        const next = await requestNextStage(session.session_id, responsePayload, Date.now() % 100000)
+        setSession(next)
+        setMessage("已进入第二阶段")
+        return
+      }
+      setEstimate(await estimateTestSession(session.session_id, responsePayload))
+      setMessage("测试完成")
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "估算失败")
     } finally {
@@ -71,15 +112,24 @@ export function App() {
   }
 
   async function runBatchEstimate() {
-    const parsed = parseBatchText(batchText)
-    if (parsed.length === 0) {
+    if (!batchText.trim()) {
       setMessage("批处理文本不能为空")
       return
     }
     setIsBusy(true)
     setMessage("")
     try {
-      setEstimate(await estimateVocabulary(parsed))
+      const job = await uploadBatchCsv(batchText)
+      setEstimate({
+        estimate: job.estimate,
+        range_low: job.range_low,
+        range_high: job.range_high,
+        confidence: job.confidence,
+        method: "api_batch_job",
+        sample_size: job.row_count,
+        ignored_words: job.ignored_count ? [`ignored_count=${job.ignored_count}`] : [],
+      })
+      setMessage(`批处理任务 #${job.id} 已保存`)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "批处理失败")
     } finally {
@@ -115,12 +165,6 @@ export function App() {
     }
   }
 
-  function resetTest() {
-    setResponses({})
-    setEstimate(null)
-    setMessage("")
-  }
-
   return (
     <main className="min-h-screen px-5 py-6 md:px-8">
       <section className="mx-auto flex max-w-7xl flex-col gap-5">
@@ -133,8 +177,8 @@ export function App() {
             </p>
           </div>
           <div className="grid grid-cols-3 gap-3 text-center">
-            <Metric label="样本词" value={initialWords.length.toString()} />
-            <Metric label="已标记" value={answeredCount.toString()} />
+            <Metric label="阶段" value={session ? session.stage.toString() : "--"} />
+            <Metric label="已标记" value={`${answeredCount}/${currentWords.length || "--"}`} />
             <Metric label="估计值" value={estimate ? estimate.estimate.toString() : "--"} />
           </div>
         </header>
@@ -146,38 +190,42 @@ export function App() {
           </Alert>
         ) : null}
 
-        <Tabs defaultValue="test" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList>
-            <TabsTrigger value="test">词汇测试</TabsTrigger>
-            <TabsTrigger value="batch">批处理</TabsTrigger>
-            <TabsTrigger value="students">学生记录</TabsTrigger>
+            <TabsTrigger value="test" onClick={() => setActiveTab("test")}>词汇测试</TabsTrigger>
+            <TabsTrigger value="batch" onClick={() => setActiveTab("batch")}>批处理</TabsTrigger>
+            <TabsTrigger value="students" onClick={() => setActiveTab("students")}>学生记录</TabsTrigger>
+            <TabsTrigger value="reports" onClick={() => setActiveTab("reports")}>实验输出</TabsTrigger>
           </TabsList>
 
           <TabsContent value="test">
             <div className="grid gap-5 lg:grid-cols-[1.35fr_0.65fr]">
               <Card>
                 <CardHeader>
-                  <CardTitle>认识状态标记</CardTitle>
-                  <CardDescription>逐词选择认识或不认识，然后提交估算。</CardDescription>
+                  <CardTitle>两阶段词汇测试</CardTitle>
+                  <CardDescription>{session ? `Session ${session.session_id}` : "等待生成测试题"}</CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-4">
                   <Progress value={progress} />
                   <div className="grid gap-3 md:grid-cols-2">
-                    {initialWords.map((word) => (
-                      <div key={word} className="flex items-center justify-between rounded-md border border-border bg-background px-3 py-2">
-                        <span className="font-mono text-sm">{word}</span>
+                    {currentWords.map((item) => (
+                      <div key={`${item.stage}-${item.word}`} className="flex items-center justify-between rounded-md border border-border bg-background px-3 py-2">
+                        <div className="flex flex-col">
+                          <span className="font-mono text-sm">{item.word}</span>
+                          <span className="text-xs text-muted-foreground">rank {item.rank}</span>
+                        </div>
                         <div className="flex gap-2">
                           <Button
                             size="sm"
-                            variant={responses[word] === true ? "default" : "outline"}
-                            onClick={() => setResponses((current) => ({ ...current, [word]: true }))}
+                            variant={responses[item.word] === true ? "default" : "outline"}
+                            onClick={() => setResponses((current) => ({ ...current, [item.word]: true }))}
                           >
                             认识
                           </Button>
                           <Button
                             size="sm"
-                            variant={responses[word] === false ? "secondary" : "outline"}
-                            onClick={() => setResponses((current) => ({ ...current, [word]: false }))}
+                            variant={responses[item.word] === false ? "secondary" : "outline"}
+                            onClick={() => setResponses((current) => ({ ...current, [item.word]: false }))}
                           >
                             不认识
                           </Button>
@@ -186,13 +234,13 @@ export function App() {
                     ))}
                   </div>
                   <div className="flex flex-wrap gap-3">
-                    <Button onClick={runEstimate} disabled={isBusy}>
+                    <Button onClick={submitCurrentStage} disabled={isBusy || !session}>
                       <BookOpenCheck data-icon="inline-start" />
-                      开始估算
+                      {session?.stage === 1 ? "提交第一阶段" : "完成测试"}
                     </Button>
-                    <Button variant="outline" onClick={resetTest}>
+                    <Button variant="outline" onClick={startNewTest} disabled={isBusy}>
                       <RotateCcw data-icon="inline-start" />
-                      重置
+                      新测试
                     </Button>
                   </div>
                 </CardContent>
@@ -212,7 +260,7 @@ export function App() {
                   <Textarea value={batchText} onChange={(event) => setBatchText(event.target.value)} />
                   <Button onClick={runBatchEstimate} disabled={isBusy}>
                     <Upload data-icon="inline-start" />
-                    运行批处理
+                    上传批处理
                   </Button>
                 </CardContent>
               </Card>
@@ -269,9 +317,80 @@ export function App() {
               </Card>
             </div>
           </TabsContent>
+
+          <TabsContent value="reports">
+            <div className="grid gap-5 xl:grid-cols-2">
+              <ReportTable title="四类语料文本估计" rows={reports?.text_estimates ?? []} columns={["text_path", "estimate", "range_low", "range_high", "confidence"]} />
+              <ReportTable title="四类学员画像估计" rows={reports?.learner_profiles ?? []} columns={["learner_class", "estimate", "range_low", "range_high", "confidence"]} />
+              <ReportTable title="稳定性实验摘要" rows={reports?.stability_summary ?? []} columns={["unknown_ratio", "sample_length", "estimate_mean", "estimate_stddev", "range_width_mean"]} />
+              <ReportTable title="学生测试样例摘要" rows={reports?.student_summary ?? []} columns={["student_code", "runs", "cet4_score", "cet6_score", "estimate_mean"]} />
+              <CorrelationCard values={reports?.student_correlation ?? {}} />
+            </div>
+          </TabsContent>
         </Tabs>
       </section>
     </main>
+  )
+}
+
+function CorrelationCard({ values }: { values: Record<string, string | number | null> }) {
+  const rows = Object.entries(values).filter(([key]) => key !== "note")
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>四六级相关性</CardTitle>
+        <CardDescription>{rows.length ? "匿名样例数据" : "暂无输出"}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>指标</TableHead>
+              <TableHead>值</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map(([key, value]) => (
+              <TableRow key={key}>
+                <TableCell>{key}</TableCell>
+                <TableCell>{value ?? "--"}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  )
+}
+
+function ReportTable({ title, rows, columns }: { title: string; rows: Record<string, string>[]; columns: string[] }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>{rows.length ? `${rows.length} 行` : "暂无输出"}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              {columns.map((column) => (
+                <TableHead key={column}>{column}</TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.slice(0, 6).map((row, index) => (
+              <TableRow key={`${title}-${index}`}>
+                {columns.map((column) => (
+                  <TableCell key={column}>{row[column] ?? "--"}</TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -323,16 +442,3 @@ function ResultCard({ estimate }: { estimate: EstimateResult | null }) {
     </Card>
   )
 }
-
-function parseBatchText(text: string) {
-  return text
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const [word, status] = line.split(",").map((part) => part.trim())
-      return { word, known: ["known", "yes", "true", "1", "认识"].includes(status.toLowerCase()) }
-    })
-    .filter((item) => item.word)
-}
-

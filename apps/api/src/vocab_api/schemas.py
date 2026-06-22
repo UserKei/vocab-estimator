@@ -24,6 +24,33 @@ class EstimateResultOut(BaseModel):
     ignored_words: list[str]
 
 
+class TestSessionRequest(BaseModel):
+    seed: int | None = None
+    stage1_size: int = Field(default=40, ge=4, le=200)
+
+
+class TestWordOut(BaseModel):
+    word: str
+    rank: int
+    stage: int
+
+
+class TestSessionOut(BaseModel):
+    session_id: str
+    stage: int
+    words: list[TestWordOut]
+
+
+class NextStageRequest(BaseModel):
+    responses: list[EstimateResponseInput] = Field(min_length=1)
+    seed: int | None = None
+    stage2_size: int = Field(default=80, ge=4, le=240)
+
+
+class FinalEstimateRequest(BaseModel):
+    responses: list[EstimateResponseInput] = Field(min_length=1)
+
+
 class BatchJobOut(BaseModel):
     id: int
     filename: str
@@ -38,9 +65,11 @@ class BatchJobOut(BaseModel):
 
 class StabilityExperimentRequest(BaseModel):
     output_path: str = "reports/outputs/stability.csv"
+    evaluation_wordlist_path: str | None = "data/wordlists/evaluation_wordlist.csv"
     unknown_ratios: list[float] = Field(default_factory=lambda: [0.1, 0.2, 0.3])
     sample_lengths: list[int] = Field(default_factory=lambda: [200, 300, 400])
     repeats: int = 100
+    bootstrap_iterations: int = 40
 
 
 class StabilityExperimentOut(BaseModel):
@@ -68,6 +97,14 @@ class TextEstimateRow(BaseModel):
 class TextEstimateOut(BaseModel):
     output_path: str
     results: list[TextEstimateRow]
+
+
+class ReportOutputsOut(BaseModel):
+    text_estimates: list[dict[str, str]]
+    learner_profiles: list[dict[str, str]]
+    stability_summary: list[dict[str, str]]
+    student_summary: list[dict[str, str]]
+    student_correlation: dict[str, object]
 
 
 class StudentResultCreate(BaseModel):

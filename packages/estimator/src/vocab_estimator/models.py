@@ -12,6 +12,13 @@ class WordRank:
 
 
 @dataclass(frozen=True)
+class TestWord:
+    word: str
+    rank: int
+    stage: int
+
+
+@dataclass(frozen=True)
 class VocabularyResponse:
     word: str
     known: bool
@@ -26,4 +33,3 @@ class EstimateResult:
     method: str
     sample_size: int
     ignored_words: list[str]
-

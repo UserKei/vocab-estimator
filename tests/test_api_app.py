@@ -15,10 +15,7 @@ class ApiAppTests(unittest.TestCase):
             database = tmp_path / "api.db"
             word_rank.write_text(
                 "word,rank,frequency,source\n"
-                "alpha,100,0.0,fixture\n"
-                "bravo,200,0.0,fixture\n"
-                "charlie,300,0.0,fixture\n"
-                "delta,400,0.0,fixture\n",
+                + "".join(f"{_word_name(i)},{i * 100},0.0,fixture\n" for i in range(1, 41)),
                 encoding="utf-8",
             )
             with _patched_env(word_rank, database):
@@ -31,10 +28,10 @@ class ApiAppTests(unittest.TestCase):
                         "/api/estimate",
                         json={
                             "responses": [
-                                {"word": "alpha", "known": True},
-                                {"word": "bravo", "known": True},
-                                {"word": "charlie", "known": False},
-                                {"word": "delta", "known": False},
+                                {"word": _word_name(1), "known": True},
+                                {"word": _word_name(2), "known": True},
+                                {"word": _word_name(3), "known": False},
+                                {"word": _word_name(4), "known": False},
                             ]
                         },
                     )
@@ -42,6 +39,50 @@ class ApiAppTests(unittest.TestCase):
                     estimate = estimate_response.json()
                     self.assertEqual(estimate["estimate"], 200)
                     self.assertEqual(estimate["sample_size"], 4)
+
+                    session_response = client.post(
+                        "/api/test-sessions",
+                        json={"seed": 19, "stage1_size": 6},
+                    )
+                    self.assertEqual(session_response.status_code, 200)
+                    session = session_response.json()
+                    self.assertEqual(session["stage"], 1)
+                    self.assertEqual(len(session["words"]), 6)
+                    self.assertEqual(session["words"][0]["stage"], 1)
+                    self.assertEqual(len({item["word"] for item in session["words"]}), 6)
+
+                    next_stage_response = client.post(
+                        f"/api/test-sessions/{session['session_id']}/next",
+                        json={
+                            "responses": [
+                                {"word": session["words"][0]["word"], "known": True},
+                                {"word": session["words"][1]["word"], "known": True},
+                                {"word": session["words"][2]["word"], "known": False},
+                                {"word": session["words"][3]["word"], "known": False},
+                            ],
+                            "seed": 23,
+                            "stage2_size": 8,
+                        },
+                    )
+                    self.assertEqual(next_stage_response.status_code, 200)
+                    next_stage = next_stage_response.json()
+                    self.assertEqual(next_stage["stage"], 2)
+                    self.assertEqual(len(next_stage["words"]), 8)
+                    self.assertTrue(all(item["stage"] == 2 for item in next_stage["words"]))
+
+                    final_response = client.post(
+                        f"/api/test-sessions/{session['session_id']}/estimate",
+                        json={
+                            "responses": [
+                                {"word": _word_name(1), "known": True},
+                                {"word": _word_name(2), "known": True},
+                                {"word": _word_name(8), "known": False},
+                                {"word": _word_name(10), "known": False},
+                            ]
+                        },
+                    )
+                    self.assertEqual(final_response.status_code, 200)
+                    self.assertEqual(final_response.json()["sample_size"], 4)
 
                     created_response = client.post(
                         "/api/student-results",
@@ -54,7 +95,7 @@ class ApiAppTests(unittest.TestCase):
                             "range_high": estimate["range_high"],
                             "confidence": estimate["confidence"],
                             "method": estimate["method"],
-                            "responses": [{"word": "alpha", "known": True}],
+                            "responses": [{"word": _word_name(1), "known": True}],
                         },
                     )
                     self.assertEqual(created_response.status_code, 200)
@@ -69,7 +110,7 @@ class ApiAppTests(unittest.TestCase):
                         files={
                             "file": (
                                 "responses.csv",
-                                "word,status\nalpha,known\nbravo,known\ncharlie,unknown\ndelta,unknown\n",
+                                f"word,status\n{_word_name(1)},known\n{_word_name(2)},known\n{_word_name(3)},unknown\n{_word_name(4)},unknown\n",
                                 "text/csv",
                             )
                         },
@@ -85,6 +126,7 @@ class ApiAppTests(unittest.TestCase):
                         "/api/experiments/stability",
                         json={
                             "output_path": str(stability_output),
+                            "evaluation_wordlist_path": None,
                             "unknown_ratios": [0.25],
                             "sample_lengths": [4],
                             "repeats": 2,
@@ -96,7 +138,10 @@ class ApiAppTests(unittest.TestCase):
 
                     text_path = tmp_path / "sample.txt"
                     text_output = tmp_path / "text_estimates.csv"
-                    text_path.write_text("alpha bravo charlie delta", encoding="utf-8")
+                    text_path.write_text(
+                        f"{_word_name(1)} {_word_name(2)} {_word_name(3)} {_word_name(4)}",
+                        encoding="utf-8",
+                    )
                     text_response = client.post(
                         "/api/experiments/text-estimate",
                         json={
@@ -110,6 +155,11 @@ class ApiAppTests(unittest.TestCase):
                     self.assertEqual(text_result["unique_words"], 4)
                     self.assertEqual(text_result["matched_words"], 4)
                     self.assertTrue(text_output.exists())
+
+                    reports_response = client.get("/api/reports/outputs")
+                    self.assertEqual(reports_response.status_code, 200)
+                    self.assertIn("text_estimates", reports_response.json())
+                    self.assertIn("student_correlation", reports_response.json())
 
 
 class _patched_env:
@@ -151,6 +201,10 @@ def _clear_api_caches() -> None:
         load_default_word_ranks.cache_clear()
     except ModuleNotFoundError:
         return
+
+
+def _word_name(index: int) -> str:
+    return f"w{chr(97 + (index // 26))}{chr(97 + (index % 26))}"
 
 
 if __name__ == "__main__":

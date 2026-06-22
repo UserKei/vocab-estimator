@@ -6,8 +6,10 @@ import unittest
 from pathlib import Path
 
 from vocab_experiments.batch import run_batch
+from vocab_experiments.learner_profile import estimate_learner_profiles
 from vocab_experiments.report_summary import summarize_stability
 from vocab_experiments.stability import run_stability_experiment
+from vocab_experiments.student_samples import write_student_sample_outputs
 from vocab_experiments.text_estimate import estimate_text_file, estimate_text_files
 from vocab_experiments.word_rank import build_word_rank
 
@@ -18,15 +20,18 @@ class ExperimentsToolsTests(unittest.TestCase):
             source = Path(tmp) / "words.txt"
             output = Path(tmp) / "word_rank.csv"
             source.write_text("the\nApple\napple\nrare-word\n", encoding="utf-8")
+            supplement = Path(tmp) / "supplement.txt"
+            supplement.write_text("zebra\napple\nyacht\n", encoding="utf-8")
 
-            count = build_word_rank(source, output, source_name="fixture")
+            count = build_word_rank(source, output, source_name="fixture", supplement_path=supplement, limit=5)
 
-            self.assertEqual(count, 3)
+            self.assertEqual(count, 5)
             with output.open("r", encoding="utf-8") as handle:
                 rows = list(csv.DictReader(handle))
-            self.assertEqual([row["word"] for row in rows], ["the", "apple", "rare"])
-            self.assertEqual([row["rank"] for row in rows], ["1", "2", "3"])
+            self.assertEqual([row["word"] for row in rows], ["the", "apple", "rare", "zebra", "yacht"])
+            self.assertEqual([row["rank"] for row in rows], ["1", "2", "3", "4", "5"])
             self.assertEqual(rows[0]["source"], "fixture")
+            self.assertNotEqual(rows[0]["frequency"], "0.0")
 
     def test_run_batch_reads_responses_and_writes_single_result_row(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -64,6 +69,7 @@ class ExperimentsToolsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             word_rank = tmp_path / "word_rank.csv"
+            evaluation = tmp_path / "evaluation.csv"
             output = tmp_path / "stability.csv"
             fixture_words = [
                 "alpha",
@@ -92,13 +98,20 @@ class ExperimentsToolsTests(unittest.TestCase):
                 writer.writerow(["word", "rank", "frequency", "source"])
                 for index, word in enumerate(fixture_words, start=1):
                     writer.writerow([word, index, "0.0", "fixture"])
+            evaluation.write_text(
+                "word,rank,frequency,source\n"
+                + "".join(f"{word},{index},0.0,evaluation\n" for index, word in enumerate(reversed(fixture_words), start=1)),
+                encoding="utf-8",
+            )
 
             rows_written = run_stability_experiment(
                 word_rank,
                 output,
+                evaluation_wordlist_csv=evaluation,
                 unknown_ratios=[0.1, 0.2],
                 sample_lengths=[5],
                 repeats=3,
+                bootstrap_iterations=10,
                 seed=1,
             )
 
@@ -115,7 +128,9 @@ class ExperimentsToolsTests(unittest.TestCase):
                 "range_high",
                 "confidence",
                 "sample_size",
+                "evaluation_source",
             })
+            self.assertTrue(any(row["range_low"] != row["range_high"] for row in rows))
 
     def test_estimate_text_file_outputs_rank_range_from_document_words(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -168,6 +183,58 @@ class ExperimentsToolsTests(unittest.TestCase):
             with output.open("r", encoding="utf-8") as handle:
                 rows = list(csv.DictReader(handle))
             self.assertEqual(len(rows), 2)
+
+    def test_estimate_learner_profiles_writes_known_unknown_results(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            word_rank = tmp_path / "word_rank.csv"
+            output = tmp_path / "learner_profiles.csv"
+            word_rank.write_text(
+                "word,rank,frequency,source\n"
+                "easy,100,0.0,fixture\n"
+                "basic,200,0.0,fixture\n"
+                "middle,800,0.0,fixture\n"
+                "advanced,1800,0.0,fixture\n"
+                "expert,2600,0.0,fixture\n",
+                encoding="utf-8",
+            )
+            samples = {}
+            for label, text in {
+                "K": "easy basic",
+                "P": "easy middle",
+                "F": "middle advanced",
+                "C": "advanced expert",
+            }.items():
+                path = tmp_path / f"{label}.txt"
+                path.write_text(text, encoding="utf-8")
+                samples[label] = path
+
+            results = estimate_learner_profiles(samples, word_rank, output, bootstrap_iterations=0)
+
+            self.assertEqual([result.learner_class for result in results], ["C", "F", "P", "K"])
+            self.assertTrue(all(result.known_count > 0 for result in results))
+            self.assertTrue(any(result.unknown_count > 0 for result in results))
+            with output.open("r", encoding="utf-8") as handle:
+                rows = list(csv.DictReader(handle))
+            self.assertEqual(rows[0]["learner_class"], "C")
+
+    def test_write_student_sample_outputs_creates_raw_and_summary_csv(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            raw = tmp_path / "student_samples.csv"
+            summary = tmp_path / "student_summary.csv"
+            correlation = tmp_path / "student_correlation.json"
+
+            rows = write_student_sample_outputs(raw, summary, correlation)
+
+            self.assertEqual(len(rows), 4)
+            self.assertTrue(raw.exists())
+            self.assertTrue(summary.exists())
+            self.assertTrue(correlation.exists())
+            with summary.open("r", encoding="utf-8") as handle:
+                summary_rows = list(csv.DictReader(handle))
+            self.assertEqual(summary_rows[0]["runs"], "3")
+            self.assertIn("cet4_estimate_correlation", correlation.read_text(encoding="utf-8"))
 
     def test_summarize_stability_writes_report_csv_json_and_svg(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

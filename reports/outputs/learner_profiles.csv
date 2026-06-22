@@ -1,0 +1,5 @@
+learner_class,estimate,range_low,range_high,confidence,known_count,unknown_count,method,ignored_words
+C,29086,19709,29086,0.61,1054,0,learner_profile_rank_midpoint_bootstrap_v1,
+F,16474,9443,19709,0.357,793,167,learner_profile_rank_midpoint_bootstrap_v1,
+P,2054,1750,2252,0.548,506,344,learner_profile_rank_midpoint_bootstrap_v1,
+K,859,839,913,0.756,178,541,learner_profile_rank_midpoint_bootstrap_v1,

@@ -6,7 +6,7 @@ import json
 from collections import defaultdict
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from statistics import fmean, pvariance
+from statistics import fmean, pstdev, pvariance
 
 
 @dataclass(frozen=True)
@@ -16,8 +16,10 @@ class StabilitySummaryRow:
     runs: int
     estimate_mean: float
     estimate_variance: float
+    estimate_stddev: float
     range_low_mean: float
     range_high_mean: float
+    range_width_mean: float
     confidence_mean: float
 
 
@@ -63,6 +65,7 @@ def _summarize_group(
     estimates = [float(row["estimate"]) for row in rows]
     range_lows = [float(row["range_low"]) for row in rows]
     range_highs = [float(row["range_high"]) for row in rows]
+    range_widths = [high - low for low, high in zip(range_lows, range_highs)]
     confidences = [float(row["confidence"]) for row in rows]
     return StabilitySummaryRow(
         unknown_ratio=unknown_ratio,
@@ -70,8 +73,10 @@ def _summarize_group(
         runs=len(rows),
         estimate_mean=round(fmean(estimates), 3),
         estimate_variance=round(pvariance(estimates), 3),
+        estimate_stddev=round(pstdev(estimates), 3),
         range_low_mean=round(fmean(range_lows), 3),
         range_high_mean=round(fmean(range_highs), 3),
+        range_width_mean=round(fmean(range_widths), 3),
         confidence_mean=round(fmean(confidences), 3),
     )
 
@@ -88,8 +93,10 @@ def _write_summary_csv(output_csv: str | Path, rows: list[StabilitySummaryRow]) 
                 "runs",
                 "estimate_mean",
                 "estimate_variance",
+                "estimate_stddev",
                 "range_low_mean",
                 "range_high_mean",
+                "range_width_mean",
                 "confidence_mean",
             ],
         )

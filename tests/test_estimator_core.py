@@ -8,6 +8,8 @@ from pathlib import Path
 from vocab_estimator import (
     VocabularyResponse,
     estimate_vocabulary,
+    generate_first_stage_words,
+    generate_second_stage_words,
     load_word_ranks,
     normalize_word,
     parse_response_csv,
@@ -132,6 +134,34 @@ class EstimatorCoreTests(unittest.TestCase):
         self.assertGreater(result.confidence, 0)
         self.assertLessEqual(result.confidence, 0.9)
 
+    def test_generates_banded_test_words_without_fixed_frontend_list(self) -> None:
+        ranks = load_word_ranks(_write_rank_fixture([(_word_name(i), i * 100) for i in range(1, 21)]))
+
+        words = generate_first_stage_words(ranks, count=5, seed=11)
+
+        self.assertEqual(len(words), 5)
+        self.assertEqual([word.stage for word in words], [1, 1, 1, 1, 1])
+        self.assertEqual(len({word.word for word in words}), 5)
+        self.assertLessEqual(words[0].rank, 400)
+        self.assertGreaterEqual(words[-1].rank, 1700)
+
+    def test_second_stage_focuses_around_first_stage_estimate(self) -> None:
+        ranks = load_word_ranks(_write_rank_fixture([(_word_name(i), i * 100) for i in range(1, 41)]))
+        first_stage = [
+            VocabularyResponse(_word_name(1), True),
+            VocabularyResponse(_word_name(5), True),
+            VocabularyResponse(_word_name(10), True),
+            VocabularyResponse(_word_name(20), False),
+            VocabularyResponse(_word_name(30), False),
+        ]
+
+        words = generate_second_stage_words(ranks, first_stage, count=8, seed=17)
+
+        self.assertEqual(len(words), 8)
+        self.assertEqual([word.stage for word in words], [2] * 8)
+        self.assertEqual(len({word.word for word in words}), 8)
+        self.assertTrue(all(400 <= word.rank <= 2800 for word in words))
+
 
 def _write_rank_fixture(entries: list[tuple[str, int]]) -> Path:
     handle = tempfile.NamedTemporaryFile("w", encoding="utf-8", newline="", delete=False)
@@ -141,6 +171,10 @@ def _write_rank_fixture(entries: list[tuple[str, int]]) -> Path:
         for word, rank in entries:
             writer.writerow([word, rank, "0.0", "fixture"])
     return Path(handle.name)
+
+
+def _word_name(index: int) -> str:
+    return f"w{chr(97 + (index // 26))}{chr(97 + (index % 26))}"
 
 
 def _write_csv(content: str) -> Path:

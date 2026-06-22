@@ -18,12 +18,19 @@ def run_stability_experiment(
     word_rank_csv: str | Path,
     output_csv: str | Path,
     *,
+    evaluation_wordlist_csv: str | Path | None = None,
     unknown_ratios: Iterable[float] = DEFAULT_UNKNOWN_RATIOS,
     sample_lengths: Iterable[int] = DEFAULT_SAMPLE_LENGTHS,
     repeats: int = DEFAULT_REPEATS,
+    bootstrap_iterations: int = 40,
     seed: int = 2026,
 ) -> int:
-    ranks = sorted(load_word_ranks(word_rank_csv).values(), key=lambda item: item.rank)
+    word_ranks = load_word_ranks(word_rank_csv)
+    ranks = sorted(
+        load_word_ranks(evaluation_wordlist_csv or word_rank_csv).values(),
+        key=lambda item: item.rank,
+    )
+    evaluation_source = Path(evaluation_wordlist_csv).name if evaluation_wordlist_csv else "internal_word_rank"
     output = Path(output_csv)
     output.parent.mkdir(parents=True, exist_ok=True)
     rng = random.Random(seed)
@@ -40,6 +47,7 @@ def run_stability_experiment(
                 "range_high",
                 "confidence",
                 "sample_size",
+                "evaluation_source",
             ],
         )
         writer.writeheader()
@@ -49,9 +57,10 @@ def run_stability_experiment(
                 for repeat_index in range(1, repeats + 1):
                     responses = _sample_responses(ranks, sample_length, unknown_ratio, rng)
                     result = estimate_vocabulary(
-                        {rank.word: rank for rank in ranks},
+                        word_ranks,
                         responses,
-                        bootstrap_iterations=0,
+                        bootstrap_iterations=bootstrap_iterations,
+                        seed=seed + repeat_index,
                     )
                     writer.writerow(
                         {
@@ -63,6 +72,7 @@ def run_stability_experiment(
                             "range_high": result.range_high,
                             "confidence": result.confidence,
                             "sample_size": result.sample_size,
+                            "evaluation_source": evaluation_source,
                         }
                     )
                     rows_written += 1
@@ -108,17 +118,21 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run vocabulary estimator stability experiments.")
     parser.add_argument("--word-rank", required=True, help="word_rank.csv path.")
     parser.add_argument("--output", required=True, help="Output stability CSV path.")
+    parser.add_argument("--evaluation-wordlist", help="Independent evaluation word rank CSV path.")
     parser.add_argument("--unknown-ratios", default="0.1,0.2,0.3")
     parser.add_argument("--sample-lengths", default="200,300,400")
     parser.add_argument("--repeats", type=int, default=100)
+    parser.add_argument("--bootstrap-iterations", type=int, default=40)
     parser.add_argument("--seed", type=int, default=2026)
     args = parser.parse_args(argv)
     rows = run_stability_experiment(
         args.word_rank,
         args.output,
+        evaluation_wordlist_csv=args.evaluation_wordlist,
         unknown_ratios=_parse_csv_numbers(args.unknown_ratios, float),
         sample_lengths=_parse_csv_numbers(args.sample_lengths, int),
         repeats=args.repeats,
+        bootstrap_iterations=args.bootstrap_iterations,
         seed=args.seed,
     )
     print(f"wrote {rows} stability rows to {args.output}")
