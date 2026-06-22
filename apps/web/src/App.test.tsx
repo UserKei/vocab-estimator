@@ -74,6 +74,7 @@ describe("App", () => {
     const stylesheet = readFileSync("src/index.css", "utf8")
 
     expect(stylesheet).toContain('@import "tailwindcss";')
+    expect(stylesheet).toContain("background-size: 32px 32px")
   })
 
   it("loads generated test words from the API instead of a fixed frontend list", async () => {
@@ -82,6 +83,17 @@ describe("App", () => {
     await waitFor(() => expect(screen.getByText("alpha")).toBeInTheDocument())
     expect(screen.getByText("bravo")).toBeInTheDocument()
     expect(fetch).toHaveBeenCalledWith("/api/test-sessions", expect.objectContaining({ method: "POST" }))
+  })
+
+  it("renders a denser lab layout with summary progress and rank badges", async () => {
+    render(<App />)
+
+    await waitFor(() => expect(screen.getByText("alpha")).toBeInTheDocument())
+    expect(screen.getByText("进度")).toBeInTheDocument()
+    expect(screen.getByText("本次测试进度")).toBeInTheDocument()
+    expect(screen.getByText("已完成")).toBeInTheDocument()
+    expect(screen.getByText("当前进度")).toBeInTheDocument()
+    expect(screen.getByText("rank 100").closest("[data-slot='badge']")).toBeInstanceOf(HTMLElement)
   })
 
   it("paginates generated test words to keep the testing card short", async () => {

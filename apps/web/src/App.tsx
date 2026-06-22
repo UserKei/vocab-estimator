@@ -17,6 +17,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import {
@@ -57,6 +58,7 @@ export function App() {
   const currentWords = session?.words ?? []
   const answeredCount = currentWords.filter((word) => responses[word.word] !== undefined).length
   const progress = currentWords.length ? (answeredCount / currentWords.length) * 100 : 0
+  const progressLabel = currentWords.length ? `${Math.round(progress)}%` : "--"
   const totalWordPages = Math.max(1, Math.ceil(currentWords.length / TEST_WORDS_PER_PAGE))
   const currentWordPage = Math.min(wordPage, totalWordPages)
   const wordPageStart = currentWords.length ? (currentWordPage - 1) * TEST_WORDS_PER_PAGE : 0
@@ -227,9 +229,10 @@ export function App() {
               英语词汇量估算、CSV 批处理、学生测试记录与验证实验的统一演示界面。
             </p>
           </div>
-          <div className="grid grid-cols-3 gap-3 text-center">
+          <div className="grid w-full grid-cols-2 gap-3 text-center lg:w-auto lg:min-w-[32rem] lg:grid-cols-4">
             <Metric label="阶段" value={session ? session.stage.toString() : "--"} />
             <Metric label="已标记" value={`${answeredCount}/${currentWords.length || "--"}`} />
+            <Metric label="进度" value={progressLabel} />
             <Metric label="估计值" value={estimate ? estimate.estimate.toString() : "--"} />
           </div>
         </header>
@@ -267,9 +270,9 @@ export function App() {
                   <div className="grid gap-3 md:grid-cols-2">
                     {visibleWords.map((item) => (
                       <div key={`${item.stage}-${item.word}`} className="flex items-center justify-between rounded-md border border-border bg-background px-3 py-2">
-                        <div className="flex flex-col">
+                        <div className="flex flex-col gap-1">
                           <span className="font-mono text-sm">{item.word}</span>
-                          <span className="text-xs text-muted-foreground">rank {item.rank}</span>
+                          <Badge variant="secondary">rank {item.rank}</Badge>
                         </div>
                         <div className="flex gap-2">
                           <Button
@@ -305,7 +308,13 @@ export function App() {
                   </div>
                 </CardContent>
               </Card>
-              <ResultCard estimate={estimate} />
+              <ResultCard
+                estimate={estimate}
+                answeredCount={answeredCount}
+                totalWords={currentWords.length}
+                progress={progress}
+                stage={session?.stage ?? null}
+              />
             </div>
           </TabsContent>
 
@@ -356,7 +365,13 @@ export function App() {
                   </Button>
                 </CardFooter>
               </Card>
-              <ResultCard estimate={estimate} />
+              <ResultCard
+                estimate={estimate}
+                answeredCount={answeredCount}
+                totalWords={currentWords.length}
+                progress={progress}
+                stage={session?.stage ?? null}
+              />
             </div>
           </TabsContent>
 
@@ -578,16 +593,27 @@ function ReportTable({ title, rows, columns }: { title: string; rows: Record<str
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <Card className="min-w-24">
-      <CardContent className="flex flex-col gap-1 p-3">
-        <span className="text-xs text-muted-foreground">{label}</span>
-        <strong className="text-2xl leading-none">{value}</strong>
-      </CardContent>
-    </Card>
+    <div className="flex min-h-20 flex-col justify-center gap-1 rounded-md border border-border bg-background px-3 py-2">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <strong className="text-2xl leading-none">{value}</strong>
+    </div>
   )
 }
 
-function ResultCard({ estimate }: { estimate: EstimateResult | null }) {
+function ResultCard({
+  estimate,
+  answeredCount,
+  totalWords,
+  progress,
+  stage,
+}: {
+  estimate: EstimateResult | null
+  answeredCount: number
+  totalWords: number
+  progress: number
+  stage: number | null
+}) {
+  const progressLabel = totalWords ? `${Math.round(progress)}%` : "--"
   return (
     <Card>
       <CardHeader>
@@ -615,9 +641,30 @@ function ResultCard({ estimate }: { estimate: EstimateResult | null }) {
             ) : null}
           </>
         ) : (
-          <div className="flex min-h-56 flex-col items-center justify-center gap-3 rounded-md border border-dashed border-border bg-background p-6 text-center">
-            <Database className="text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">等待测试或批处理结果</p>
+          <div className="flex flex-col gap-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex flex-col gap-1">
+                <p className="text-sm font-medium">本次测试进度</p>
+                <p className="text-sm text-muted-foreground">完成两阶段标记后会生成估算结果。</p>
+              </div>
+              <Badge variant="outline">{stage ? `阶段 ${stage}` : "未开始"}</Badge>
+            </div>
+            <Progress value={progress} />
+            <div className="grid grid-cols-2 gap-3">
+              <Metric label="已完成" value={`${answeredCount}/${totalWords || "--"}`} />
+              <Metric label="当前进度" value={progressLabel} />
+              <Metric label="估计范围" value="--" />
+              <Metric label="置信度" value="--" />
+            </div>
+            <Empty className="min-h-40 border bg-background p-8">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <Database />
+                </EmptyMedia>
+                <EmptyTitle>等待测试或批处理结果</EmptyTitle>
+                <EmptyDescription>完成测试或上传 CSV 后，这里会显示词汇量、范围和置信度。</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           </div>
         )}
       </CardContent>

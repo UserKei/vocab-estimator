@@ -123,6 +123,11 @@
   }
   body {
     @apply bg-background text-foreground;
+    background-image:
+      linear-gradient(90deg, color-mix(in oklch, var(--border) 45%, transparent) 1px, transparent 1px),
+      linear-gradient(180deg, color-mix(in oklch, var(--border) 45%, transparent) 1px, transparent 1px);
+    background-size: 32px 32px;
+    background-attachment: fixed;
   }
   html {
     @apply font-sans;
