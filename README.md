@@ -13,7 +13,7 @@
 - [x] 初始化 `vocab-estimator/` Git 仓库并完成项目说明初始提交
 - [x] 清理早期测试草稿和缓存文件
 - [x] 初始化 monorepo 项目骨架
-- [ ] 初始化 FastAPI 后端
+- [x] 初始化 FastAPI 后端
 - [ ] 初始化 React + Vite + shadcn/ui 前端
 - [x] 设计并生成 `data/wordlists/word_rank.csv`
 - [x] 实现词汇量估算核心算法
@@ -24,7 +24,7 @@
 - [ ] 实现四类测试语料估计输出
 - [ ] 实现 PostgreSQL + SQLModel + Alembic 数据保存
 - [ ] 实现 GUI 演示测试流程
-- [ ] 实现学生测试记录和四六级成绩记录
+- [x] 实现学生测试记录和四六级成绩记录
 - [ ] 实现 Docker Compose 和 `deploy.sh`
 - [ ] 输出报告所需 CSV/JSON/图表
 - [ ] 整理课程报告材料
@@ -39,7 +39,7 @@
 运行测试：
 
 ```bash
-PYTHONPATH=packages/estimator/src:packages/experiments/src python3 -m unittest discover -s tests -v
+.venv/bin/python -m pytest -q
 ```
 
 重新生成词表：
@@ -64,4 +64,16 @@ PYTHONPATH=packages/estimator/src:packages/experiments/src python3 -m vocab_expe
 
 ```bash
 PYTHONPATH=packages/estimator/src:packages/experiments/src python3 -m vocab_experiments.text_estimate --word-rank data/wordlists/word_rank.csv --output reports/outputs/text_estimates.csv data/samples/C.txt data/samples/F.txt data/samples/P.txt data/samples/K.txt
+```
+
+运行数据库迁移：
+
+```bash
+.venv/bin/alembic upgrade head
+```
+
+启动后端 API：
+
+```bash
+.venv/bin/python -m vocab_api
 ```
