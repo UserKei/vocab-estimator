@@ -95,3 +95,11 @@ pnpm web:build
 ```bash
 pnpm web:dev
 ```
+
+部署到服务器：
+
+```bash
+./deploy.sh
+```
+
+Docker 相关命令需要 Docker daemon 正在运行；当前可先用 `docker compose config --quiet` 校验配置格式。
