@@ -15,6 +15,7 @@
 - [x] 初始化 monorepo 项目骨架
 - [x] 初始化 FastAPI 后端
 - [x] 初始化 React + Vite + shadcn/ui 前端
+- [x] 使用 shadcn CLI 覆盖安装前端 UI 组件
 - [x] 设计并生成 `data/wordlists/word_rank.csv`
 - [x] 实现词汇量估算核心算法
 - [x] 实现 bootstrap 范围和置信度
