@@ -20,6 +20,7 @@
 - [x] 实现 bootstrap 范围和置信度
 - [x] 实现 CSV 后台批处理
 - [x] 实现 900 次稳定性实验
+- [x] 实现文本语料估计工具
 - [ ] 实现四类测试语料估计输出
 - [ ] 实现 PostgreSQL + SQLModel + Alembic 数据保存
 - [ ] 实现 GUI 演示测试流程
@@ -57,4 +58,10 @@ PYTHONPATH=packages/estimator/src:packages/experiments/src python3 -m vocab_expe
 
 ```bash
 PYTHONPATH=packages/estimator/src:packages/experiments/src python3 -m vocab_experiments.stability --word-rank data/wordlists/word_rank.csv --output reports/outputs/stability.csv --unknown-ratios 0.1,0.2,0.3 --sample-lengths 200,300,400 --repeats 100
+```
+
+估计文本语料：
+
+```bash
+PYTHONPATH=packages/estimator/src:packages/experiments/src python3 -m vocab_experiments.text_estimate --word-rank data/wordlists/word_rank.csv --output reports/outputs/text_estimates.csv data/samples/C.txt data/samples/F.txt data/samples/P.txt data/samples/K.txt
 ```
