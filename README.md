@@ -14,7 +14,7 @@
 - [x] 清理早期测试草稿和缓存文件
 - [x] 初始化 monorepo 项目骨架
 - [x] 初始化 FastAPI 后端
-- [ ] 初始化 React + Vite + shadcn/ui 前端
+- [x] 初始化 React + Vite + shadcn/ui 前端
 - [x] 设计并生成 `data/wordlists/word_rank.csv`
 - [x] 实现词汇量估算核心算法
 - [x] 实现 bootstrap 范围和置信度
@@ -23,7 +23,7 @@
 - [x] 实现文本语料估计工具
 - [ ] 实现四类测试语料估计输出
 - [ ] 实现 PostgreSQL + SQLModel + Alembic 数据保存
-- [ ] 实现 GUI 演示测试流程
+- [x] 实现 GUI 演示测试流程
 - [x] 实现学生测试记录和四六级成绩记录
 - [ ] 实现 Docker Compose 和 `deploy.sh`
 - [ ] 输出报告所需 CSV/JSON/图表
@@ -76,4 +76,22 @@ PYTHONPATH=packages/estimator/src:packages/experiments/src python3 -m vocab_expe
 
 ```bash
 .venv/bin/python -m vocab_api
+```
+
+运行前端测试：
+
+```bash
+pnpm web:test
+```
+
+构建前端：
+
+```bash
+pnpm web:build
+```
+
+启动前端：
+
+```bash
+pnpm web:dev
 ```

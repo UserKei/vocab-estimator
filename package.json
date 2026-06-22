@@ -1,0 +1,14 @@
+{
+  "name": "vocab-estimator-workspace",
+  "private": true,
+  "packageManager": "pnpm@10.26.1",
+  "scripts": {
+    "web:dev": "pnpm --filter @vocab-estimator/web dev",
+    "web:build": "pnpm --filter @vocab-estimator/web build",
+    "web:test": "pnpm --filter @vocab-estimator/web test"
+  },
+  "devDependencies": {
+    "prettier": "^3.7.4"
+  }
+}
+

@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: #f6f3ed;
+  --color-foreground: #202124;
+  --color-card: #fffdf8;
+  --color-card-foreground: #202124;
+  --color-popover: #fffdf8;
+  --color-popover-foreground: #202124;
+  --color-primary: #1d5c63;
+  --color-primary-foreground: #f8fbfb;
+  --color-secondary: #e7decf;
+  --color-secondary-foreground: #202124;
+  --color-muted: #ebe5da;
+  --color-muted-foreground: #6e695f;
+  --color-accent: #c95b3f;
+  --color-accent-foreground: #fff8f4;
+  --color-destructive: #a93636;
+  --color-destructive-foreground: #fff8f4;
+  --color-border: #d8cfbf;
+  --color-input: #d8cfbf;
+  --color-ring: #1d5c63;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background:
+    linear-gradient(90deg, rgba(32, 33, 36, 0.035) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(32, 33, 36, 0.035) 1px, transparent 1px),
+    var(--color-background);
+  background-size: 28px 28px;
+  color: var(--color-foreground);
+  font-family: ui-serif, Georgia, Cambria, "Times New Roman", serif;
+  letter-spacing: 0;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+code,
+pre,
+.font-mono {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
