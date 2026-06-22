@@ -28,6 +28,7 @@
 - [x] 实现 GUI 演示测试流程
 - [x] 实现学生测试记录和四六级成绩记录
 - [x] 实现 Docker Compose 和 `deploy.sh`
+- [x] 增加 Ubuntu 服务器部署前准备脚本，安装 Docker/Compose 并为 2G 内存配置 swap
 - [x] 输出报告所需 CSV/JSON/图表
 - [x] 整理课程报告材料
 - [x] 移除前端固定 8 个正式测试词
@@ -176,4 +177,16 @@ pnpm web:dev
 ./deploy.sh
 ```
 
-Docker 相关命令需要 Docker daemon 正在运行；当前可先用 `docker compose config --quiet` 校验配置格式。
+Ubuntu 服务器部署前准备（推荐 2 核 2G 服务器先执行）：
+
+```bash
+sudo ./prepare-server.sh
+```
+
+2G 内存服务器部署时建议限制 Compose 并发构建：
+
+```bash
+COMPOSE_PARALLEL_LIMIT=1 ./deploy.sh
+```
+
+Docker 相关命令需要 Docker daemon 正在运行；当前可先用 `docker compose config --quiet` 校验配置格式。`prepare-server.sh` 如果把当前用户加入了 `docker` 组，需要重新登录后再直接运行 Docker 命令。
