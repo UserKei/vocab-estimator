@@ -183,6 +183,12 @@ Ubuntu 服务器部署前准备（推荐 2 核 2G 服务器先执行）：
 sudo ./prepare-server.sh
 ```
 
+如果服务器无法访问 Docker Hub，可以指定 Docker registry mirror。腾讯云服务器可先尝试：
+
+```bash
+sudo DOCKER_REGISTRY_MIRRORS=https://mirror.ccs.tencentyun.com ./prepare-server.sh
+```
+
 2G 内存服务器部署时建议限制 Compose 并发构建：
 
 ```bash

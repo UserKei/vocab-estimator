@@ -38,3 +38,15 @@ def test_prepare_server_script_handles_low_memory_server_swap():
 
     for expected in ["SWAP_SIZE", "/swapfile", "fallocate", "mkswap", "swapon"]:
         assert expected in script
+
+
+def test_prepare_server_script_can_configure_registry_mirrors():
+    script = SCRIPT.read_text(encoding="utf-8")
+
+    for expected in [
+        "DOCKER_REGISTRY_MIRRORS",
+        "/etc/docker/daemon.json",
+        "registry-mirrors",
+        "systemctl restart docker",
+    ]:
+        assert expected in script
