@@ -10,6 +10,7 @@
 - [x] 写入并更新方案文档 `docs/vocab-estimator-proposal.md`
 - [x] 建立中文 agent 协作约定，并要求后续更新同步维护 README 待办事项
 - [x] 明确 `vocab-estimator/` 是项目 Git 仓库根目录，提交在项目目录内完成
+- [x] 初始化 `vocab-estimator/` Git 仓库并完成项目说明初始提交
 - [ ] 清理早期测试草稿和缓存文件
 - [ ] 初始化 monorepo 项目骨架
 - [ ] 初始化 FastAPI 后端
