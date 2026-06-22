@@ -1,12 +1,12 @@
 {
   "$schema": "https://ui.shadcn.com/schema.json",
-  "style": "new-york",
+  "style": "radix-vega",
   "rsc": false,
   "tsx": true,
   "tailwind": {
     "config": "",
     "css": "src/index.css",
-    "baseColor": "neutral",
+    "baseColor": "zinc",
     "cssVariables": true
   },
   "aliases": {
@@ -16,6 +16,9 @@
     "lib": "@/lib",
     "hooks": "@/hooks"
   },
-  "iconLibrary": "lucide"
+  "iconLibrary": "lucide",
+  "rtl": false,
+  "menuColor": "default",
+  "menuAccent": "subtle",
+  "registries": {}
 }
-

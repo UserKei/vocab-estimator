@@ -127,7 +127,7 @@ CSV 批处理命令：
 PYTHONPATH=packages/estimator/src:packages/experiments/src .venv/bin/python -m vocab_experiments.batch --responses input.csv --word-rank data/wordlists/word_rank.csv --output output.csv
 ```
 
-前端批处理页会将 CSV 上传到 `/api/batch`，后端会保存 `batch_jobs` 记录。
+前端批处理页会拖拽或选择上传 CSV 文件到 `/api/batch`，后端会保存 `batch_jobs` 记录。
 
 稳定性实验按照课程建议设置：
 
@@ -160,9 +160,9 @@ PYTHONPATH=packages/estimator/src:packages/experiments/src .venv/bin/python -m v
 
 前端提供课程演示工作台：
 
-- 两阶段词汇测试。
+- 两阶段词汇测试，测试词列表分页展示。
 - 估计结果展示。
-- CSV 批处理上传。
+- CSV 批处理拖拽或选择上传。
 - 学生记录保存。
 - 实验/报告输出查看。
 

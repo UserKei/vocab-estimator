@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react"
-import { BookOpenCheck, Database, RotateCcw, Save, Upload } from "lucide-react"
+import { useEffect, useMemo, useState, type DragEvent, type MouseEvent } from "react"
+import { BookOpenCheck, Database, FileUp, RotateCcw, Save, Upload } from "lucide-react"
 import {
   createTestSession,
   estimateTestSession,
@@ -16,20 +16,35 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
 import { Progress } from "@/components/ui/progress"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Textarea } from "@/components/ui/textarea"
+import { cn } from "@/lib/utils"
 
 type ResponseMap = Record<string, boolean | undefined>
+type PageToken = number | "ellipsis-start" | "ellipsis-end"
+
+const TEST_WORDS_PER_PAGE = 8
 
 export function App() {
   const [session, setSession] = useState<TestSession | null>(null)
   const [responses, setResponses] = useState<ResponseMap>({})
   const [estimate, setEstimate] = useState<EstimateResult | null>(null)
-  const [batchText, setBatchText] = useState("word,status\n")
+  const [batchFile, setBatchFile] = useState<File | null>(null)
+  const [isBatchDragActive, setIsBatchDragActive] = useState(false)
+  const [wordPage, setWordPage] = useState(1)
   const [studentCode, setStudentCode] = useState("S001")
   const [cet4Score, setCet4Score] = useState("")
   const [cet6Score, setCet6Score] = useState("")
@@ -42,6 +57,12 @@ export function App() {
   const currentWords = session?.words ?? []
   const answeredCount = currentWords.filter((word) => responses[word.word] !== undefined).length
   const progress = currentWords.length ? (answeredCount / currentWords.length) * 100 : 0
+  const totalWordPages = Math.max(1, Math.ceil(currentWords.length / TEST_WORDS_PER_PAGE))
+  const currentWordPage = Math.min(wordPage, totalWordPages)
+  const wordPageStart = currentWords.length ? (currentWordPage - 1) * TEST_WORDS_PER_PAGE : 0
+  const wordPageEnd = Math.min(wordPageStart + TEST_WORDS_PER_PAGE, currentWords.length)
+  const visibleWords = currentWords.slice(wordPageStart, wordPageEnd)
+  const wordPageRangeLabel = currentWords.length ? `本页 ${wordPageStart + 1}-${wordPageEnd} / 共 ${currentWords.length} 个词` : "暂无词汇"
   const responsePayload = useMemo(
     () => Object.entries(responses).flatMap(([word, known]) => (known === undefined ? [] : [{ word, known: Boolean(known) }])),
     [responses],
@@ -52,6 +73,14 @@ export function App() {
     void refreshStudentResults()
     void refreshReports()
   }, [])
+
+  useEffect(() => {
+    setWordPage(1)
+  }, [session?.session_id, session?.stage])
+
+  useEffect(() => {
+    setWordPage((current) => Math.min(current, totalWordPages))
+  }, [totalWordPages])
 
   async function refreshStudentResults() {
     try {
@@ -74,6 +103,7 @@ export function App() {
     setMessage("")
     setEstimate(null)
     setResponses({})
+    setWordPage(1)
     try {
       setSession(await createTestSession(Date.now() % 100000))
     } catch (error) {
@@ -90,7 +120,7 @@ export function App() {
       return
     }
     if (!currentWords.length || answeredCount < currentWords.length) {
-      setMessage("请完成当前阶段的全部标记")
+      setMessage("请完成当前阶段全部分页词汇标记")
       return
     }
     setIsBusy(true)
@@ -98,6 +128,7 @@ export function App() {
     try {
       if (session.stage === 1) {
         const next = await requestNextStage(session.session_id, responsePayload, Date.now() % 100000)
+        setWordPage(1)
         setSession(next)
         setMessage("已进入第二阶段")
         return
@@ -112,14 +143,14 @@ export function App() {
   }
 
   async function runBatchEstimate() {
-    if (!batchText.trim()) {
-      setMessage("批处理文本不能为空")
+    if (!batchFile) {
+      setMessage("请先选择 CSV 文件")
       return
     }
     setIsBusy(true)
     setMessage("")
     try {
-      const job = await uploadBatchCsv(batchText)
+      const job = await uploadBatchCsv(batchFile)
       setEstimate({
         estimate: job.estimate,
         range_low: job.range_low,
@@ -135,6 +166,27 @@ export function App() {
     } finally {
       setIsBusy(false)
     }
+  }
+
+  function selectBatchFile(fileList: ArrayLike<File> | null) {
+    setBatchFile(fileList?.length ? fileList[0] : null)
+  }
+
+  function handleBatchDragOver(event: DragEvent<HTMLLabelElement>) {
+    event.preventDefault()
+    event.dataTransfer.dropEffect = "copy"
+    setIsBatchDragActive(true)
+  }
+
+  function handleBatchDragLeave(event: DragEvent<HTMLLabelElement>) {
+    event.preventDefault()
+    setIsBatchDragActive(false)
+  }
+
+  function handleBatchDrop(event: DragEvent<HTMLLabelElement>) {
+    event.preventDefault()
+    setIsBatchDragActive(false)
+    selectBatchFile(event.dataTransfer.files)
   }
 
   async function saveCurrentResult() {
@@ -170,7 +222,6 @@ export function App() {
       <section className="mx-auto flex max-w-7xl flex-col gap-5">
         <header className="flex flex-col gap-4 border-b border-border pb-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="flex flex-col gap-2">
-            <Badge variant="outline" className="w-fit">课程设计工具台</Badge>
             <h1 className="text-4xl font-semibold leading-tight md:text-5xl">vocab-estimator</h1>
             <p className="max-w-3xl text-sm text-muted-foreground">
               英语词汇量估算、CSV 批处理、学生测试记录与验证实验的统一演示界面。
@@ -206,9 +257,15 @@ export function App() {
                   <CardDescription>{session ? `Session ${session.session_id}` : "等待生成测试题"}</CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-4">
-                  <Progress value={progress} />
+                  <div className="flex flex-col gap-2">
+                    <Progress value={progress} />
+                    <div className="flex flex-col gap-1 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+                      <span>{`第 ${currentWordPage} / ${totalWordPages} 页`}</span>
+                      <span>{wordPageRangeLabel}</span>
+                    </div>
+                  </div>
                   <div className="grid gap-3 md:grid-cols-2">
-                    {currentWords.map((item) => (
+                    {visibleWords.map((item) => (
                       <div key={`${item.stage}-${item.word}`} className="flex items-center justify-between rounded-md border border-border bg-background px-3 py-2">
                         <div className="flex flex-col">
                           <span className="font-mono text-sm">{item.word}</span>
@@ -224,7 +281,7 @@ export function App() {
                           </Button>
                           <Button
                             size="sm"
-                            variant={responses[item.word] === false ? "secondary" : "outline"}
+                            variant={responses[item.word] === false ? "destructive" : "outline"}
                             onClick={() => setResponses((current) => ({ ...current, [item.word]: false }))}
                           >
                             不认识
@@ -233,6 +290,9 @@ export function App() {
                       </div>
                     ))}
                   </div>
+                  {totalWordPages > 1 ? (
+                    <TestWordPagination page={currentWordPage} totalPages={totalWordPages} onPageChange={setWordPage} />
+                  ) : null}
                   <div className="flex flex-wrap gap-3">
                     <Button onClick={submitCurrentStage} disabled={isBusy || !session}>
                       <BookOpenCheck data-icon="inline-start" />
@@ -254,15 +314,47 @@ export function App() {
               <Card>
                 <CardHeader>
                   <CardTitle>CSV 批处理估算</CardTitle>
-                  <CardDescription>每行使用 word,status，status 支持 known 或 unknown。</CardDescription>
+                  <CardDescription>拖拽或选择 CSV 文件；每行使用 word,status，status 支持 known 或 unknown。</CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-4">
-                  <Textarea value={batchText} onChange={(event) => setBatchText(event.target.value)} />
-                  <Button onClick={runBatchEstimate} disabled={isBusy}>
+                  <FieldGroup>
+                    <Field>
+                      <FieldLabel htmlFor="batch-csv-file">选择 CSV 文件</FieldLabel>
+                      <label
+                        htmlFor="batch-csv-file"
+                        aria-label="拖拽 CSV 文件到这里"
+                        onDragOver={handleBatchDragOver}
+                        onDragLeave={handleBatchDragLeave}
+                        onDrop={handleBatchDrop}
+                        className={cn(
+                          "flex min-h-48 cursor-pointer flex-col items-center justify-center gap-3 rounded-md border border-dashed bg-background px-4 py-8 text-center transition-colors",
+                          isBatchDragActive ? "border-primary bg-muted" : "border-border",
+                        )}
+                      >
+                        <FileUp className="text-muted-foreground" aria-hidden="true" />
+                        <span className="text-sm font-medium">拖拽 CSV 文件到这里</span>
+                        <span className="text-sm text-muted-foreground">或点击选择本地文件</span>
+                        <Badge variant={batchFile ? "secondary" : "outline"}>
+                          {batchFile ? `${batchFile.name} · ${batchFile.size} bytes` : "未选择文件"}
+                        </Badge>
+                      </label>
+                      <Input
+                        id="batch-csv-file"
+                        className="sr-only"
+                        type="file"
+                        accept=".csv,text/csv"
+                        onChange={(event) => selectBatchFile(event.target.files)}
+                      />
+                      <FieldDescription>格式：word,status；status 支持 known/unknown 或 认识/不认识。</FieldDescription>
+                    </Field>
+                  </FieldGroup>
+                </CardContent>
+                <CardFooter>
+                  <Button className="w-full" onClick={runBatchEstimate} disabled={isBusy || !batchFile}>
                     <Upload data-icon="inline-start" />
                     上传批处理
                   </Button>
-                </CardContent>
+                </CardFooter>
               </Card>
               <ResultCard estimate={estimate} />
             </div>
@@ -331,6 +423,96 @@ export function App() {
       </section>
     </main>
   )
+}
+
+function TestWordPagination({
+  page,
+  totalPages,
+  onPageChange,
+}: {
+  page: number
+  totalPages: number
+  onPageChange: (page: number) => void
+}) {
+  const pageTokens = buildPageTokens(page, totalPages)
+
+  function navigate(event: MouseEvent<HTMLAnchorElement>, nextPage: number) {
+    event.preventDefault()
+    onPageChange(Math.max(1, Math.min(totalPages, nextPage)))
+  }
+
+  return (
+    <Pagination>
+      <PaginationContent className="flex-wrap">
+        <PaginationItem>
+          <PaginationPrevious
+            href="#"
+            aria-label="上一页"
+            aria-disabled={page === 1}
+            tabIndex={page === 1 ? -1 : undefined}
+            text="上一页"
+            className={cn(page === 1 && "pointer-events-none opacity-50")}
+            onClick={(event) => navigate(event, page - 1)}
+          />
+        </PaginationItem>
+        {pageTokens.map((token) => (
+          <PaginationItem key={token}>
+            {typeof token === "number" ? (
+              <PaginationLink
+                href="#"
+                aria-label={`第 ${token} 页`}
+                isActive={token === page}
+                onClick={(event) => navigate(event, token)}
+              >
+                {token}
+              </PaginationLink>
+            ) : (
+              <PaginationEllipsis />
+            )}
+          </PaginationItem>
+        ))}
+        <PaginationItem>
+          <PaginationNext
+            href="#"
+            aria-label="下一页"
+            aria-disabled={page === totalPages}
+            tabIndex={page === totalPages ? -1 : undefined}
+            text="下一页"
+            className={cn(page === totalPages && "pointer-events-none opacity-50")}
+            onClick={(event) => navigate(event, page + 1)}
+          />
+        </PaginationItem>
+      </PaginationContent>
+    </Pagination>
+  )
+}
+
+function buildPageTokens(currentPage: number, totalPages: number): PageToken[] {
+  if (totalPages <= 5) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1)
+  }
+
+  const visiblePages = new Set(
+    [1, currentPage - 1, currentPage, currentPage + 1, totalPages].filter((page) => page >= 1 && page <= totalPages),
+  )
+  const sortedPages = [...visiblePages].sort((left, right) => left - right)
+  const tokens: PageToken[] = []
+  let ellipsisCount = 0
+
+  for (const page of sortedPages) {
+    const previous = tokens.at(-1)
+    if (typeof previous === "number" && page - previous > 1) {
+      if (page - previous === 2) {
+        tokens.push(previous + 1)
+      } else {
+        tokens.push(ellipsisCount === 0 ? "ellipsis-start" : "ellipsis-end")
+        ellipsisCount += 1
+      }
+    }
+    tokens.push(page)
+  }
+
+  return tokens
 }
 
 function CorrelationCard({ values }: { values: Record<string, string | number | null> }) {

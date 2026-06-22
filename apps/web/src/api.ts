@@ -97,9 +97,9 @@ export function estimateTestSession(sessionId: string, responses: EstimateRespon
   })
 }
 
-export async function uploadBatchCsv(content: string) {
+export async function uploadBatchCsv(file: File) {
   const formData = new FormData()
-  formData.append("file", new Blob([content], { type: "text/csv" }), "responses.csv")
+  formData.append("file", file, file.name)
   const response = await fetch("/api/batch", {
     method: "POST",
     body: formData,
