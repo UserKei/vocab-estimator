@@ -19,7 +19,7 @@
 - [x] 实现词汇量估算核心算法
 - [x] 实现 bootstrap 范围和置信度
 - [x] 实现 CSV 后台批处理
-- [ ] 实现 900 次稳定性实验
+- [x] 实现 900 次稳定性实验
 - [ ] 实现四类测试语料估计输出
 - [ ] 实现 PostgreSQL + SQLModel + Alembic 数据保存
 - [ ] 实现 GUI 演示测试流程
@@ -51,4 +51,10 @@ PYTHONPATH=packages/estimator/src:packages/experiments/src python3 -m vocab_expe
 
 ```bash
 PYTHONPATH=packages/estimator/src:packages/experiments/src python3 -m vocab_experiments.batch --responses input.csv --word-rank data/wordlists/word_rank.csv --output output.csv
+```
+
+运行 900 次稳定性实验：
+
+```bash
+PYTHONPATH=packages/estimator/src:packages/experiments/src python3 -m vocab_experiments.stability --word-rank data/wordlists/word_rank.csv --output reports/outputs/stability.csv --unknown-ratios 0.1,0.2,0.3 --sample-lengths 200,300,400 --repeats 100
 ```

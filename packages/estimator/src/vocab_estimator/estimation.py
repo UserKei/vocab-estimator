@@ -63,14 +63,26 @@ def _map_responses(
 
 
 def _estimate_threshold(observed: Sequence[tuple[int, bool]]) -> tuple[int, float]:
-    ranks = sorted({rank for rank, _ in observed})
-    candidates = [0, *ranks]
-    best_rank = candidates[0]
-    best_errors = len(observed) + 1
-    for candidate in candidates:
-        errors = sum(1 for rank, known in observed if (rank <= candidate) != known)
-        if errors < best_errors or (errors == best_errors and abs(candidate - _median(ranks)) < abs(best_rank - _median(ranks))):
-            best_rank = candidate
+    grouped: dict[int, list[bool]] = {}
+    for rank, known in observed:
+        grouped.setdefault(rank, []).append(known)
+    ranks = sorted(grouped)
+    median_rank = _median(ranks)
+    known_above = sum(1 for _, known in observed if known)
+    unknown_below = 0
+    best_rank = 0
+    best_errors = known_above
+    for rank in ranks:
+        for known in grouped[rank]:
+            if known:
+                known_above -= 1
+            else:
+                unknown_below += 1
+        errors = known_above + unknown_below
+        if errors < best_errors or (
+            errors == best_errors and abs(rank - median_rank) < abs(best_rank - median_rank)
+        ):
+            best_rank = rank
             best_errors = errors
     return max(0, int(best_rank)), best_errors / len(observed)
 
@@ -118,4 +130,3 @@ def _median(values: Sequence[int]) -> float:
     if len(ordered) % 2:
         return float(ordered[middle])
     return (ordered[middle - 1] + ordered[middle]) / 2
-

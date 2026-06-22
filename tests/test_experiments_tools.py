@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 from vocab_experiments.batch import run_batch
+from vocab_experiments.stability import run_stability_experiment
 from vocab_experiments.word_rank import build_word_rank
 
 
@@ -56,6 +57,63 @@ class ExperimentsToolsTests(unittest.TestCase):
             self.assertEqual(len(rows), 1)
             self.assertEqual(rows[0]["estimate"], "200")
             self.assertEqual(rows[0]["method"], "rank_midpoint_bootstrap_v1")
+
+    def test_run_stability_experiment_writes_rows_for_each_combination(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            word_rank = tmp_path / "word_rank.csv"
+            output = tmp_path / "stability.csv"
+            fixture_words = [
+                "alpha",
+                "bravo",
+                "charlie",
+                "delta",
+                "echo",
+                "foxtrot",
+                "golf",
+                "hotel",
+                "india",
+                "juliet",
+                "kilo",
+                "lima",
+                "mike",
+                "november",
+                "oscar",
+                "papa",
+                "quebec",
+                "romeo",
+                "sierra",
+                "tango",
+            ]
+            with word_rank.open("w", encoding="utf-8", newline="") as handle:
+                writer = csv.writer(handle)
+                writer.writerow(["word", "rank", "frequency", "source"])
+                for index, word in enumerate(fixture_words, start=1):
+                    writer.writerow([word, index, "0.0", "fixture"])
+
+            rows_written = run_stability_experiment(
+                word_rank,
+                output,
+                unknown_ratios=[0.1, 0.2],
+                sample_lengths=[5],
+                repeats=3,
+                seed=1,
+            )
+
+            self.assertEqual(rows_written, 6)
+            with output.open("r", encoding="utf-8") as handle:
+                rows = list(csv.DictReader(handle))
+            self.assertEqual(len(rows), 6)
+            self.assertEqual(set(rows[0]), {
+                "unknown_ratio",
+                "sample_length",
+                "repeat",
+                "estimate",
+                "range_low",
+                "range_high",
+                "confidence",
+                "sample_size",
+            })
 
 
 if __name__ == "__main__":
