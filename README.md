@@ -23,12 +23,12 @@
 - [x] 实现 900 次稳定性实验
 - [x] 实现文本语料估计工具
 - [x] 实现四类测试语料估计输出
-- [ ] 实现 PostgreSQL + SQLModel + Alembic 数据保存
+- [x] 实现 PostgreSQL + SQLModel + Alembic 数据保存
 - [x] 实现 GUI 演示测试流程
 - [x] 实现学生测试记录和四六级成绩记录
-- [ ] 实现 Docker Compose 和 `deploy.sh`
+- [x] 实现 Docker Compose 和 `deploy.sh`
 - [x] 输出报告所需 CSV/JSON/图表
-- [ ] 整理课程报告材料
+- [x] 整理课程报告材料
 
 ## 备注
 
@@ -71,6 +71,12 @@ PYTHONPATH=packages/estimator/src:packages/experiments/src python3 -m vocab_expe
 
 ```bash
 PYTHONPATH=packages/estimator/src:packages/experiments/src python3 -m vocab_experiments.text_estimate --word-rank data/wordlists/word_rank.csv --output reports/outputs/text_estimates.csv data/samples/C.txt data/samples/F.txt data/samples/P.txt data/samples/K.txt
+```
+
+课程报告草稿：
+
+```text
+docs/course-report.md
 ```
 
 运行数据库迁移：
