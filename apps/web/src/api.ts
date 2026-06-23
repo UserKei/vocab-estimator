@@ -25,6 +25,24 @@ export type TestSession = {
   words: TestWord[]
 }
 
+export type AdaptiveResponseStatus = "known" | "unknown" | "uncertain"
+
+export type AdaptiveResponseInput = {
+  word: string
+  status: AdaptiveResponseStatus
+}
+
+export type AdaptiveSession = {
+  session_id: string
+  current_word: TestWord | null
+  completed: boolean
+  estimate: EstimateResult | null
+  progress: number
+  answered_count: number
+  max_items: number
+  target_rank: number
+}
+
 export type BatchJob = {
   id: number
   filename: string
@@ -94,6 +112,24 @@ export function estimateTestSession(sessionId: string, responses: EstimateRespon
   return requestJson<EstimateResult>(`/api/test-sessions/${sessionId}/estimate`, {
     method: "POST",
     body: JSON.stringify({ responses }),
+  })
+}
+
+export function createAdaptiveSession(seed?: number) {
+  return requestJson<AdaptiveSession>("/api/adaptive-test-sessions", {
+    method: "POST",
+    body: JSON.stringify({ seed, max_items: 24, min_items: 10, start_rank: 5000 }),
+  })
+}
+
+export function answerAdaptiveSession(
+  sessionId: string,
+  responses: AdaptiveResponseInput[],
+  seed?: number,
+) {
+  return requestJson<AdaptiveSession>(`/api/adaptive-test-sessions/${sessionId}/answer`, {
+    method: "POST",
+    body: JSON.stringify({ responses, seed, max_items: 24, min_items: 10, start_rank: 5000 }),
   })
 }
 

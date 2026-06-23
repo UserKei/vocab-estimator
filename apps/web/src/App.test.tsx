@@ -1,29 +1,43 @@
 import { readFileSync } from "node:fs"
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { App } from "./App"
 
-const generatedTestWords = [
-  { word: "alpha", rank: 100, stage: 1 },
-  { word: "bravo", rank: 900, stage: 1 },
-  ...Array.from({ length: 12 }, (_, index) => ({
-    word: `word-${index + 3}`,
-    rank: 1000 + index,
-    stage: 1,
-  })),
-]
-
-vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
   const url = String(input)
-  if (url.endsWith("/api/test-sessions")) {
-    return new Response(JSON.stringify({
-      session_id: "session-test",
-      stage: 1,
-      words: generatedTestWords,
-    }), { status: 200, headers: { "Content-Type": "application/json" } })
+  if (url.endsWith("/api/adaptive-test-sessions")) {
+    return jsonResponse({
+      session_id: "adaptive-test",
+      current_word: { word: "alpha", rank: 100, stage: 1 },
+      completed: false,
+      estimate: null,
+      progress: 0,
+      answered_count: 0,
+      max_items: 24,
+      target_rank: 100,
+    })
+  }
+  if (url.endsWith("/api/adaptive-test-sessions/adaptive-test/answer")) {
+    const body = JSON.parse(String(init?.body ?? "{}")) as { responses?: Array<{ status: string }> }
+    const lastStatus = body.responses?.at(-1)?.status ?? "known"
+    const nextWord = lastStatus === "unknown"
+      ? { word: "easy", rank: 50, stage: 2 }
+      : lastStatus === "uncertain"
+        ? { word: "middle", rank: 600, stage: 2 }
+        : { word: "omega", rank: 1200, stage: 2 }
+    return jsonResponse({
+      session_id: "adaptive-test",
+      current_word: nextWord,
+      completed: false,
+      estimate: null,
+      progress: 4.2,
+      answered_count: 1,
+      max_items: 24,
+      target_rank: nextWord.rank,
+    })
   }
   if (url.endsWith("/api/reports/outputs")) {
-    return new Response(JSON.stringify({
+    return jsonResponse({
       text_estimates: [{ text_path: "C.txt", estimate: "12000", confidence: "0.7" }],
       learner_profiles: [{ learner_class: "C", estimate: "11800", confidence: "0.6" }],
       stability_summary: [{ unknown_ratio: "0.1", sample_length: "200", estimate_mean: "9000" }],
@@ -32,10 +46,10 @@ vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
         cet4_estimate_correlation: 0.99,
         cet6_estimate_correlation: 0.98,
       },
-    }), { status: 200, headers: { "Content-Type": "application/json" } })
+    })
   }
   if (url.endsWith("/api/batch")) {
-    return new Response(JSON.stringify({
+    return jsonResponse({
       id: 7,
       filename: "responses.csv",
       estimate: 4200,
@@ -45,12 +59,12 @@ vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
       row_count: 4,
       ignored_count: 0,
       created_at: "2026-06-22T00:00:00",
-    }), { status: 200, headers: { "Content-Type": "application/json" } })
+    })
   }
   if (url.endsWith("/api/student-results")) {
-    return new Response(JSON.stringify([]), { status: 200, headers: { "Content-Type": "application/json" } })
+    return jsonResponse([])
   }
-  return new Response(JSON.stringify({ status: "ok" }), { status: 200, headers: { "Content-Type": "application/json" } })
+  return jsonResponse({ status: "ok" })
 }))
 
 describe("App", () => {
@@ -77,51 +91,56 @@ describe("App", () => {
     expect(stylesheet).toContain("background-size: 32px 32px")
   })
 
-  it("loads generated test words from the API instead of a fixed frontend list", async () => {
+  it("loads one adaptive word from the API instead of a fixed frontend list", async () => {
     render(<App />)
 
     await waitFor(() => expect(screen.getByText("alpha")).toBeInTheDocument())
-    expect(screen.getByText("bravo")).toBeInTheDocument()
-    expect(fetch).toHaveBeenCalledWith("/api/test-sessions", expect.objectContaining({ method: "POST" }))
+    expect(screen.getByText("自适应词汇测试")).toBeInTheDocument()
+    expect(screen.getByText("不确定")).toBeInTheDocument()
+    expect(fetch).toHaveBeenCalledWith("/api/adaptive-test-sessions", expect.objectContaining({ method: "POST" }))
   })
 
-  it("renders a denser lab layout with summary progress and rank badges", async () => {
+  it("renders summary progress and the current rank badge", async () => {
     render(<App />)
 
     await waitFor(() => expect(screen.getByText("alpha")).toBeInTheDocument())
     expect(screen.getByText("进度")).toBeInTheDocument()
     expect(screen.getByText("本次测试进度")).toBeInTheDocument()
-    expect(screen.getByText("已完成")).toBeInTheDocument()
-    expect(screen.getByText("当前进度")).toBeInTheDocument()
+    expect(screen.getByText("逐词动态调整")).toBeInTheDocument()
     expect(screen.getByText("rank 100").closest("[data-slot='badge']")).toBeInstanceOf(HTMLElement)
   })
 
-  it("paginates generated test words to keep the testing card short", async () => {
-    render(<App />)
-
-    await waitFor(() => expect(screen.getByText("第 1 / 2 页")).toBeInTheDocument())
-    expect(screen.getByText("alpha")).toBeInTheDocument()
-    expect(screen.queryByText("word-9")).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByLabelText("下一页"))
-
-    expect(screen.getByText("第 2 / 2 页")).toBeInTheDocument()
-    expect(screen.getByText("word-9")).toBeInTheDocument()
-    expect(screen.queryByText("alpha")).not.toBeInTheDocument()
-  })
-
-  it("uses a high contrast selected state when marking a word unknown", async () => {
+  it("moves to the next adaptive word after marking the current word known", async () => {
     render(<App />)
 
     await waitFor(() => expect(screen.getByText("alpha")).toBeInTheDocument())
-    const wordRow = screen.getByText("alpha").parentElement?.parentElement
-    expect(wordRow).toBeInstanceOf(HTMLElement)
-    const unknownButton = within(wordRow as HTMLElement).getByRole("button", { name: "不认识" })
+    fireEvent.click(screen.getByRole("button", { name: "认识" }))
 
-    fireEvent.click(unknownButton)
+    await waitFor(() => expect(screen.getByText("omega")).toBeInTheDocument())
+    const answerCall = vi.mocked(fetch).mock.calls.find(([url]) => String(url).endsWith("/api/adaptive-test-sessions/adaptive-test/answer"))
+    const body = JSON.parse(String((answerCall?.[1] as RequestInit | undefined)?.body ?? "{}"))
+    expect(body.responses[0]).toMatchObject({ word: "alpha", status: "known" })
+  })
+
+  it("supports uncertain answers in the adaptive test flow", async () => {
+    render(<App />)
+
+    await waitFor(() => expect(screen.getByText("alpha")).toBeInTheDocument())
+    fireEvent.click(screen.getByRole("button", { name: "不确定" }))
+
+    await waitFor(() => expect(screen.getByText("middle")).toBeInTheDocument())
+    const answerCall = vi.mocked(fetch).mock.calls.find(([url]) => String(url).endsWith("/api/adaptive-test-sessions/adaptive-test/answer"))
+    const body = JSON.parse(String((answerCall?.[1] as RequestInit | undefined)?.body ?? "{}"))
+    expect(body.responses[0]).toMatchObject({ word: "alpha", status: "uncertain" })
+  })
+
+  it("uses a high contrast action for marking a word unknown", async () => {
+    render(<App />)
+
+    await waitFor(() => expect(screen.getByText("alpha")).toBeInTheDocument())
+    const unknownButton = screen.getByRole("button", { name: "不认识" })
 
     expect(unknownButton).toHaveAttribute("data-variant", "destructive")
-    expect(within(wordRow as HTMLElement).getByRole("button", { name: "认识" })).toHaveAttribute("data-variant", "outline")
   })
 
   it("shows student score correlation outputs on the reports tab", async () => {
@@ -172,3 +191,7 @@ describe("App", () => {
     }))
   })
 })
+
+function jsonResponse(body: unknown) {
+  return new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } })
+}

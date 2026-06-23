@@ -1,17 +1,18 @@
-import { useEffect, useMemo, useState, type DragEvent, type MouseEvent } from "react"
-import { BookOpenCheck, Database, FileUp, RotateCcw, Save, Upload } from "lucide-react"
+import { useEffect, useMemo, useState, type DragEvent } from "react"
+import { CheckCircle2, CircleHelp, Database, FileUp, RotateCcw, Save, Upload, XCircle } from "lucide-react"
 import {
-  createTestSession,
-  estimateTestSession,
+  answerAdaptiveSession,
+  createAdaptiveSession,
   fetchReportOutputs,
   listStudentResults,
-  requestNextStage,
   saveStudentResult,
   uploadBatchCsv,
+  type AdaptiveResponseInput,
+  type AdaptiveResponseStatus,
+  type AdaptiveSession,
   type EstimateResult,
   type ReportOutputs,
   type StudentResult,
-  type TestSession,
 } from "./api"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -20,32 +21,20 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import {
-  Pagination,
-  PaginationContent,
-  PaginationEllipsis,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination"
 import { Progress } from "@/components/ui/progress"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 
-type ResponseMap = Record<string, boolean | undefined>
-type PageToken = number | "ellipsis-start" | "ellipsis-end"
-
-const TEST_WORDS_PER_PAGE = 8
+const ADAPTIVE_MAX_ITEMS = 24
 
 export function App() {
-  const [session, setSession] = useState<TestSession | null>(null)
-  const [responses, setResponses] = useState<ResponseMap>({})
+  const [adaptiveSession, setAdaptiveSession] = useState<AdaptiveSession | null>(null)
+  const [adaptiveResponses, setAdaptiveResponses] = useState<AdaptiveResponseInput[]>([])
+  const [adaptiveSeed, setAdaptiveSeed] = useState(2026)
   const [estimate, setEstimate] = useState<EstimateResult | null>(null)
   const [batchFile, setBatchFile] = useState<File | null>(null)
   const [isBatchDragActive, setIsBatchDragActive] = useState(false)
-  const [wordPage, setWordPage] = useState(1)
   const [studentCode, setStudentCode] = useState("S001")
   const [cet4Score, setCet4Score] = useState("")
   const [cet6Score, setCet6Score] = useState("")
@@ -55,19 +44,19 @@ export function App() {
   const [isBusy, setIsBusy] = useState(false)
   const [activeTab, setActiveTab] = useState("test")
 
-  const currentWords = session?.words ?? []
-  const answeredCount = currentWords.filter((word) => responses[word.word] !== undefined).length
-  const progress = currentWords.length ? (answeredCount / currentWords.length) * 100 : 0
-  const progressLabel = currentWords.length ? `${Math.round(progress)}%` : "--"
-  const totalWordPages = Math.max(1, Math.ceil(currentWords.length / TEST_WORDS_PER_PAGE))
-  const currentWordPage = Math.min(wordPage, totalWordPages)
-  const wordPageStart = currentWords.length ? (currentWordPage - 1) * TEST_WORDS_PER_PAGE : 0
-  const wordPageEnd = Math.min(wordPageStart + TEST_WORDS_PER_PAGE, currentWords.length)
-  const visibleWords = currentWords.slice(wordPageStart, wordPageEnd)
-  const wordPageRangeLabel = currentWords.length ? `本页 ${wordPageStart + 1}-${wordPageEnd} / 共 ${currentWords.length} 个词` : "暂无词汇"
+  const currentWord = adaptiveSession?.current_word ?? null
+  const answeredCount = adaptiveSession?.answered_count ?? adaptiveResponses.length
+  const totalWords = adaptiveSession?.max_items ?? ADAPTIVE_MAX_ITEMS
+  const progress = adaptiveSession?.progress ?? 0
+  const progressLabel = totalWords ? `${Math.round(progress)}%` : "--"
   const responsePayload = useMemo(
-    () => Object.entries(responses).flatMap(([word, known]) => (known === undefined ? [] : [{ word, known: Boolean(known) }])),
-    [responses],
+    () =>
+      adaptiveResponses.flatMap((response) =>
+        response.status === "uncertain"
+          ? []
+          : [{ word: response.word, known: response.status === "known" }],
+      ),
+    [adaptiveResponses],
   )
 
   useEffect(() => {
@@ -75,14 +64,6 @@ export function App() {
     void refreshStudentResults()
     void refreshReports()
   }, [])
-
-  useEffect(() => {
-    setWordPage(1)
-  }, [session?.session_id, session?.stage])
-
-  useEffect(() => {
-    setWordPage((current) => Math.min(current, totalWordPages))
-  }, [totalWordPages])
 
   async function refreshStudentResults() {
     try {
@@ -101,43 +82,41 @@ export function App() {
   }
 
   async function startNewTest() {
+    const seed = Date.now() % 100000
+    setAdaptiveSeed(seed)
     setIsBusy(true)
     setMessage("")
     setEstimate(null)
-    setResponses({})
-    setWordPage(1)
+    setAdaptiveResponses([])
     try {
-      setSession(await createTestSession(Date.now() % 100000))
+      setAdaptiveSession(await createAdaptiveSession(seed))
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "测试题生成失败")
-      setSession(null)
+      setAdaptiveSession(null)
     } finally {
       setIsBusy(false)
     }
   }
 
-  async function submitCurrentStage() {
-    if (!session) {
+  async function answerCurrentWord(status: AdaptiveResponseStatus) {
+    if (!adaptiveSession || !currentWord) {
       setMessage("请先生成测试题")
       return
     }
-    if (!currentWords.length || answeredCount < currentWords.length) {
-      setMessage("请完成当前阶段全部分页词汇标记")
-      return
-    }
+    const previousResponses = adaptiveResponses
+    const nextResponses = [...adaptiveResponses, { word: currentWord.word, status }]
+    setAdaptiveResponses(nextResponses)
     setIsBusy(true)
     setMessage("")
     try {
-      if (session.stage === 1) {
-        const next = await requestNextStage(session.session_id, responsePayload, Date.now() % 100000)
-        setWordPage(1)
-        setSession(next)
-        setMessage("已进入第二阶段")
-        return
+      const next = await answerAdaptiveSession(adaptiveSession.session_id, nextResponses, adaptiveSeed)
+      setAdaptiveSession(next)
+      if (next.completed && next.estimate) {
+        setEstimate(next.estimate)
+        setMessage("测试完成")
       }
-      setEstimate(await estimateTestSession(session.session_id, responsePayload))
-      setMessage("测试完成")
     } catch (error) {
+      setAdaptiveResponses(previousResponses)
       setMessage(error instanceof Error ? error.message : "估算失败")
     } finally {
       setIsBusy(false)
@@ -230,8 +209,8 @@ export function App() {
             </p>
           </div>
           <div className="grid w-full grid-cols-2 gap-3 text-center lg:w-auto lg:min-w-[32rem] lg:grid-cols-4">
-            <Metric label="阶段" value={session ? session.stage.toString() : "--"} />
-            <Metric label="已标记" value={`${answeredCount}/${currentWords.length || "--"}`} />
+            <Metric label="当前 rank" value={currentWord ? currentWord.rank.toString() : "--"} />
+            <Metric label="已回答" value={`${answeredCount}/${totalWords || "--"}`} />
             <Metric label="进度" value={progressLabel} />
             <Metric label="估计值" value={estimate ? estimate.estimate.toString() : "--"} />
           </div>
@@ -255,52 +234,75 @@ export function App() {
           <TabsContent value="test">
             <div className="grid gap-5 lg:grid-cols-[1.35fr_0.65fr]">
               <Card>
-                <CardHeader>
-                  <CardTitle>两阶段词汇测试</CardTitle>
-                  <CardDescription>{session ? `Session ${session.session_id}` : "等待生成测试题"}</CardDescription>
+                <CardHeader className="border-b bg-muted/30">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex flex-col gap-1">
+                      <CardTitle>自适应词汇测试</CardTitle>
+                      <CardDescription>{adaptiveSession ? `Session ${adaptiveSession.session_id}` : "等待生成测试题"}</CardDescription>
+                    </div>
+                    <Badge variant={adaptiveSession?.completed ? "secondary" : "outline"}>
+                      {adaptiveSession?.completed ? "已完成" : "逐词动态调整"}
+                    </Badge>
+                  </div>
                 </CardHeader>
-                <CardContent className="flex flex-col gap-4">
+                <CardContent className="flex flex-col gap-5 pt-6">
                   <div className="flex flex-col gap-2">
                     <Progress value={progress} />
                     <div className="flex flex-col gap-1 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-                      <span>{`第 ${currentWordPage} / ${totalWordPages} 页`}</span>
-                      <span>{wordPageRangeLabel}</span>
+                      <span>{`已回答 ${answeredCount} / ${totalWords} 个词`}</span>
+                      <span>{`下一题目标 rank ${adaptiveSession?.target_rank ?? "--"}`}</span>
                     </div>
                   </div>
-                  <div className="grid gap-3 md:grid-cols-2">
-                    {visibleWords.map((item) => (
-                      <div key={`${item.stage}-${item.word}`} className="flex items-center justify-between rounded-md border border-border bg-background px-3 py-2">
-                        <div className="flex flex-col gap-1">
-                          <span className="font-mono text-sm">{item.word}</span>
-                          <Badge variant="secondary">rank {item.rank}</Badge>
+
+                  <div className="flex min-h-80 flex-col items-center justify-center gap-6 rounded-md border border-border bg-background px-5 py-8 text-center">
+                    {currentWord ? (
+                      <>
+                        <Badge variant="secondary" className="px-3">rank {currentWord.rank}</Badge>
+                        <div className="flex flex-col gap-2">
+                          <span className="font-mono text-5xl font-semibold leading-none sm:text-7xl">
+                            {currentWord.word}
+                          </span>
+                          <span className="text-sm text-muted-foreground">根据上一题结果实时选择下一题难度</span>
                         </div>
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            variant={responses[item.word] === true ? "default" : "outline"}
-                            onClick={() => setResponses((current) => ({ ...current, [item.word]: true }))}
-                          >
+                        <div className="grid w-full max-w-2xl gap-3 sm:grid-cols-3">
+                          <Button size="lg" onClick={() => answerCurrentWord("known")} disabled={isBusy}>
+                            <CheckCircle2 data-icon="inline-start" />
                             认识
                           </Button>
-                          <Button
-                            size="sm"
-                            variant={responses[item.word] === false ? "destructive" : "outline"}
-                            onClick={() => setResponses((current) => ({ ...current, [item.word]: false }))}
-                          >
+                          <Button size="lg" variant="secondary" onClick={() => answerCurrentWord("uncertain")} disabled={isBusy}>
+                            <CircleHelp data-icon="inline-start" />
+                            不确定
+                          </Button>
+                          <Button size="lg" variant="destructive" onClick={() => answerCurrentWord("unknown")} disabled={isBusy}>
+                            <XCircle data-icon="inline-start" />
                             不认识
                           </Button>
                         </div>
-                      </div>
-                    ))}
+                      </>
+                    ) : (
+                      <Empty className="min-h-56 p-8">
+                        <EmptyHeader>
+                          <EmptyMedia variant="icon">
+                            <Database />
+                          </EmptyMedia>
+                          <EmptyTitle>{estimate ? "测试完成" : "等待测试题"}</EmptyTitle>
+                          <EmptyDescription>{estimate ? "右侧已经生成估算结果。" : "点击新测试重新生成自适应词汇测试。"}</EmptyDescription>
+                        </EmptyHeader>
+                      </Empty>
+                    )}
                   </div>
-                  {totalWordPages > 1 ? (
-                    <TestWordPagination page={currentWordPage} totalPages={totalWordPages} onPageChange={setWordPage} />
+
+                  {adaptiveResponses.length ? (
+                    <div className="flex flex-wrap gap-2">
+                      {adaptiveResponses.slice(-8).map((response, index) => (
+                        <Badge key={`${response.word}-${index}`} variant={response.status === "known" ? "default" : response.status === "unknown" ? "destructive" : "secondary"}>
+                          {response.word} · {statusLabel(response.status)}
+                        </Badge>
+                      ))}
+                    </div>
                   ) : null}
+
                   <div className="flex flex-wrap gap-3">
-                    <Button onClick={submitCurrentStage} disabled={isBusy || !session}>
-                      <BookOpenCheck data-icon="inline-start" />
-                      {session?.stage === 1 ? "提交第一阶段" : "完成测试"}
-                    </Button>
                     <Button variant="outline" onClick={startNewTest} disabled={isBusy}>
                       <RotateCcw data-icon="inline-start" />
                       新测试
@@ -311,9 +313,9 @@ export function App() {
               <ResultCard
                 estimate={estimate}
                 answeredCount={answeredCount}
-                totalWords={currentWords.length}
+                totalWords={totalWords}
                 progress={progress}
-                stage={session?.stage ?? null}
+                statusLabel={adaptiveSession?.completed ? "已完成" : "进行中"}
               />
             </div>
           </TabsContent>
@@ -368,9 +370,9 @@ export function App() {
               <ResultCard
                 estimate={estimate}
                 answeredCount={answeredCount}
-                totalWords={currentWords.length}
+                totalWords={totalWords}
                 progress={progress}
-                stage={session?.stage ?? null}
+                statusLabel={adaptiveSession?.completed ? "已完成" : "进行中"}
               />
             </div>
           </TabsContent>
@@ -440,94 +442,14 @@ export function App() {
   )
 }
 
-function TestWordPagination({
-  page,
-  totalPages,
-  onPageChange,
-}: {
-  page: number
-  totalPages: number
-  onPageChange: (page: number) => void
-}) {
-  const pageTokens = buildPageTokens(page, totalPages)
-
-  function navigate(event: MouseEvent<HTMLAnchorElement>, nextPage: number) {
-    event.preventDefault()
-    onPageChange(Math.max(1, Math.min(totalPages, nextPage)))
+function statusLabel(status: AdaptiveResponseStatus) {
+  if (status === "known") {
+    return "认识"
   }
-
-  return (
-    <Pagination>
-      <PaginationContent className="flex-wrap">
-        <PaginationItem>
-          <PaginationPrevious
-            href="#"
-            aria-label="上一页"
-            aria-disabled={page === 1}
-            tabIndex={page === 1 ? -1 : undefined}
-            text="上一页"
-            className={cn(page === 1 && "pointer-events-none opacity-50")}
-            onClick={(event) => navigate(event, page - 1)}
-          />
-        </PaginationItem>
-        {pageTokens.map((token) => (
-          <PaginationItem key={token}>
-            {typeof token === "number" ? (
-              <PaginationLink
-                href="#"
-                aria-label={`第 ${token} 页`}
-                isActive={token === page}
-                onClick={(event) => navigate(event, token)}
-              >
-                {token}
-              </PaginationLink>
-            ) : (
-              <PaginationEllipsis />
-            )}
-          </PaginationItem>
-        ))}
-        <PaginationItem>
-          <PaginationNext
-            href="#"
-            aria-label="下一页"
-            aria-disabled={page === totalPages}
-            tabIndex={page === totalPages ? -1 : undefined}
-            text="下一页"
-            className={cn(page === totalPages && "pointer-events-none opacity-50")}
-            onClick={(event) => navigate(event, page + 1)}
-          />
-        </PaginationItem>
-      </PaginationContent>
-    </Pagination>
-  )
-}
-
-function buildPageTokens(currentPage: number, totalPages: number): PageToken[] {
-  if (totalPages <= 5) {
-    return Array.from({ length: totalPages }, (_, index) => index + 1)
+  if (status === "unknown") {
+    return "不认识"
   }
-
-  const visiblePages = new Set(
-    [1, currentPage - 1, currentPage, currentPage + 1, totalPages].filter((page) => page >= 1 && page <= totalPages),
-  )
-  const sortedPages = [...visiblePages].sort((left, right) => left - right)
-  const tokens: PageToken[] = []
-  let ellipsisCount = 0
-
-  for (const page of sortedPages) {
-    const previous = tokens.at(-1)
-    if (typeof previous === "number" && page - previous > 1) {
-      if (page - previous === 2) {
-        tokens.push(previous + 1)
-      } else {
-        tokens.push(ellipsisCount === 0 ? "ellipsis-start" : "ellipsis-end")
-        ellipsisCount += 1
-      }
-    }
-    tokens.push(page)
-  }
-
-  return tokens
+  return "不确定"
 }
 
 function CorrelationCard({ values }: { values: Record<string, string | number | null> }) {
@@ -605,13 +527,13 @@ function ResultCard({
   answeredCount,
   totalWords,
   progress,
-  stage,
+  statusLabel: testStatusLabel,
 }: {
   estimate: EstimateResult | null
   answeredCount: number
   totalWords: number
   progress: number
-  stage: number | null
+  statusLabel: string
 }) {
   const progressLabel = totalWords ? `${Math.round(progress)}%` : "--"
   return (
@@ -645,9 +567,9 @@ function ResultCard({
             <div className="flex items-start justify-between gap-3">
               <div className="flex flex-col gap-1">
                 <p className="text-sm font-medium">本次测试进度</p>
-                <p className="text-sm text-muted-foreground">完成两阶段标记后会生成估算结果。</p>
+                <p className="text-sm text-muted-foreground">完成自适应测试后会生成估算结果。</p>
               </div>
-              <Badge variant="outline">{stage ? `阶段 ${stage}` : "未开始"}</Badge>
+              <Badge variant="outline">{testStatusLabel}</Badge>
             </div>
             <Progress value={progress} />
             <div className="grid grid-cols-2 gap-3">

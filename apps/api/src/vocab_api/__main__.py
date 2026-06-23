@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import uvicorn
 
+from .config import get_settings
+
 
 def main() -> None:
-    uvicorn.run("vocab_api.main:app", host="0.0.0.0", port=8000, reload=False)
+    settings = get_settings()
+    uvicorn.run("vocab_api.main:app", host=settings.api_host, port=settings.api_port, reload=False)
 
 
 if __name__ == "__main__":
     main()
-

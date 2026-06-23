@@ -28,14 +28,17 @@
 - [x] 实现 GUI 演示测试流程
 - [x] 实现学生测试记录和四六级成绩记录
 - [x] 实现 Docker Compose 和 `deploy.sh`
+- [x] 实现本地开发 Docker infra，只启动 PostgreSQL，并配置根 `package.json` 启动脚本
 - [x] Web 服务使用默认 HTTP 80 端口，方便同学直接访问
 - [x] 增加 Ubuntu 服务器部署前准备脚本，安装 Docker/Compose 并为 2G 内存配置 swap
 - [x] 输出报告所需 CSV/JSON/图表
 - [x] 整理课程报告材料
 - [x] 移除前端固定 8 个正式测试词
 - [x] 实现后端动态分层测试题生成 API
-- [x] 实现两阶段或近似两阶段 GUI 测试流程
-- [x] 前端词汇测试列表分页，避免测试卡片滚动过长
+- [x] 保留后端两阶段测试 API，并实现 GUI 自适应逐词测试流程
+- [x] 前端词汇测试改为单词逐个出现，避免长列表滚动
+- [x] 实现自适应逐词测试 API，支持认识、不认识和不确定
+- [x] 补充自适应词汇测试社区方案调研文档
 - [x] 强化“不认识”选中态视觉区分
 - [x] 移除页面顶部“课程设计工具台”标签
 - [x] 修复 Tailwind v4 样式入口，恢复前端工具类编译
@@ -130,6 +133,42 @@ docs/course-report.md
 
 ```bash
 .venv/bin/python -m vocab_api
+```
+
+启动本地开发数据库：
+
+```bash
+pnpm infra:up
+```
+
+需要修改本地端口或数据库连接时，先复制 `.env.example`：
+
+```bash
+cp .env.example .env
+```
+
+启动本地开发后端（连接 Docker infra PostgreSQL）：
+
+```bash
+pnpm api:dev
+```
+
+启动本地开发前端：
+
+```bash
+pnpm web:dev
+```
+
+一键启动本地开发数据库、后端和前端：
+
+```bash
+pnpm dev
+```
+
+停止本地开发数据库：
+
+```bash
+pnpm infra:down
 ```
 
 API 批处理上传：

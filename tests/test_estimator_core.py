@@ -6,8 +6,11 @@ import unittest
 from pathlib import Path
 
 from vocab_estimator import (
+    AdaptiveResponse,
     VocabularyResponse,
+    estimate_adaptive_vocabulary,
     estimate_vocabulary,
+    generate_adaptive_state,
     generate_first_stage_words,
     generate_second_stage_words,
     load_word_ranks,
@@ -161,6 +164,60 @@ class EstimatorCoreTests(unittest.TestCase):
         self.assertEqual([word.stage for word in words], [2] * 8)
         self.assertEqual(len({word.word for word in words}), 8)
         self.assertTrue(all(400 <= word.rank <= 2800 for word in words))
+
+    def test_adaptive_test_moves_difficulty_after_each_answer(self) -> None:
+        ranks = load_word_ranks(_write_rank_fixture([(_word_name(i), i * 100) for i in range(1, 61)]))
+
+        first = generate_adaptive_state(ranks, [], seed=7, max_items=10, min_items=4, start_rank=1000)
+        self.assertIsNotNone(first.current_word)
+        assert first.current_word is not None
+
+        harder = generate_adaptive_state(
+            ranks,
+            [AdaptiveResponse(first.current_word.word, "known")],
+            seed=7,
+            max_items=10,
+            min_items=4,
+            start_rank=1000,
+        )
+        easier = generate_adaptive_state(
+            ranks,
+            [AdaptiveResponse(first.current_word.word, "unknown")],
+            seed=7,
+            max_items=10,
+            min_items=4,
+            start_rank=1000,
+        )
+
+        self.assertIsNotNone(harder.current_word)
+        self.assertIsNotNone(easier.current_word)
+        assert harder.current_word is not None
+        assert easier.current_word is not None
+        self.assertGreater(harder.current_word.rank, first.current_word.rank)
+        self.assertLess(easier.current_word.rank, first.current_word.rank)
+
+    def test_adaptive_estimate_accepts_uncertain_responses_with_lower_confidence(self) -> None:
+        ranks = load_word_ranks(_write_rank_fixture([(_word_name(i), i * 100) for i in range(1, 61)]))
+
+        certain = estimate_adaptive_vocabulary(
+            ranks,
+            [
+                AdaptiveResponse(_word_name(8), "known"),
+                AdaptiveResponse(_word_name(22), "unknown"),
+            ],
+        )
+        uncertain = estimate_adaptive_vocabulary(
+            ranks,
+            [
+                AdaptiveResponse(_word_name(8), "known"),
+                AdaptiveResponse(_word_name(15), "uncertain"),
+                AdaptiveResponse(_word_name(22), "unknown"),
+            ],
+        )
+
+        self.assertEqual(uncertain.method, "adaptive_rank_cutoff_v1")
+        self.assertEqual(uncertain.sample_size, 3)
+        self.assertLess(uncertain.confidence, certain.confidence)
 
 
 def _write_rank_fixture(entries: list[tuple[str, int]]) -> Path:

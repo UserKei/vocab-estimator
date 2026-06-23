@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -8,6 +9,11 @@ from pydantic import BaseModel, Field
 class EstimateResponseInput(BaseModel):
     word: str
     known: bool
+
+
+class AdaptiveResponseInput(BaseModel):
+    word: str
+    status: Literal["known", "unknown", "uncertain"]
 
 
 class EstimateRequest(BaseModel):
@@ -39,6 +45,32 @@ class TestSessionOut(BaseModel):
     session_id: str
     stage: int
     words: list[TestWordOut]
+
+
+class AdaptiveTestSessionRequest(BaseModel):
+    seed: int | None = None
+    max_items: int = Field(default=24, ge=1, le=80)
+    min_items: int = Field(default=10, ge=1, le=80)
+    start_rank: int = Field(default=5000, ge=1)
+
+
+class AdaptiveAnswerRequest(BaseModel):
+    responses: list[AdaptiveResponseInput] = Field(default_factory=list)
+    seed: int | None = None
+    max_items: int = Field(default=24, ge=1, le=80)
+    min_items: int = Field(default=10, ge=1, le=80)
+    start_rank: int = Field(default=5000, ge=1)
+
+
+class AdaptiveSessionOut(BaseModel):
+    session_id: str
+    current_word: TestWordOut | None
+    completed: bool
+    estimate: EstimateResultOut | None
+    progress: float
+    answered_count: int
+    max_items: int
+    target_rank: int
 
 
 class NextStageRequest(BaseModel):

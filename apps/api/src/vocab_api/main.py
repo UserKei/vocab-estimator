@@ -8,12 +8,16 @@ import json
 
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from sqlmodel import Session
+from vocab_estimator.models import AdaptiveState
 from vocab_experiments.stability import run_stability_experiment
 from vocab_experiments.text_estimate import estimate_text_files
 
 from .database import create_db_and_tables, get_session
 from .repositories import create_batch_job, create_student_result, list_student_results
 from .schemas import (
+    AdaptiveAnswerRequest,
+    AdaptiveSessionOut,
+    AdaptiveTestSessionRequest,
     BatchJobOut,
     EstimateRequest,
     EstimateResultOut,
@@ -35,6 +39,7 @@ from .schemas import (
 from .services import (
     estimate_from_csv_text,
     estimate_from_inputs,
+    generate_adaptive_session,
     generate_first_stage,
     generate_next_stage,
     load_default_word_ranks,
@@ -104,6 +109,33 @@ def create_app() -> FastAPI:
             sample_size=result.sample_size,
             ignored_words=result.ignored_words,
         )
+
+    @app.post("/api/adaptive-test-sessions", response_model=AdaptiveSessionOut)
+    def create_adaptive_test_session(payload: AdaptiveTestSessionRequest) -> AdaptiveSessionOut:
+        seed = payload.seed if payload.seed is not None else 2026
+        state = generate_adaptive_session(
+            [],
+            seed=seed,
+            max_items=payload.max_items,
+            min_items=payload.min_items,
+            start_rank=payload.start_rank,
+        )
+        return _adaptive_state_out(f"adaptive-{seed}-{payload.max_items}", state)
+
+    @app.post("/api/adaptive-test-sessions/{session_id}/answer", response_model=AdaptiveSessionOut)
+    def answer_adaptive_test_session(session_id: str, payload: AdaptiveAnswerRequest) -> AdaptiveSessionOut:
+        seed = payload.seed if payload.seed is not None else _session_seed(session_id, 3)
+        try:
+            state = generate_adaptive_session(
+                [(item.word, item.status) for item in payload.responses],
+                seed=seed,
+                max_items=payload.max_items,
+                min_items=payload.min_items,
+                start_rank=payload.start_rank,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return _adaptive_state_out(session_id, state)
 
     @app.post("/api/batch", response_model=BatchJobOut)
     async def batch_estimate(
@@ -198,6 +230,37 @@ def get_settings_word_rank_path() -> str:
 
 def _session_seed(session_id: str, stage: int) -> int:
     return sum(ord(char) for char in session_id) + stage * 1009
+
+
+def _adaptive_state_out(session_id: str, adaptive_state: AdaptiveState) -> AdaptiveSessionOut:
+    current_word = adaptive_state.current_word
+    estimate = adaptive_state.estimate
+    return AdaptiveSessionOut(
+        session_id=session_id,
+        current_word=(
+            TestWordOut(word=current_word.word, rank=current_word.rank, stage=current_word.stage)
+            if current_word is not None
+            else None
+        ),
+        completed=adaptive_state.completed,
+        estimate=(
+            EstimateResultOut(
+                estimate=estimate.estimate,
+                range_low=estimate.range_low,
+                range_high=estimate.range_high,
+                confidence=estimate.confidence,
+                method=estimate.method,
+                sample_size=estimate.sample_size,
+                ignored_words=estimate.ignored_words,
+            )
+            if estimate is not None
+            else None
+        ),
+        progress=adaptive_state.progress,
+        answered_count=adaptive_state.answered_count,
+        max_items=adaptive_state.max_items,
+        target_rank=adaptive_state.target_rank,
+    )
 
 
 def _existing_path_or_none(path: str | None) -> str | None:

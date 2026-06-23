@@ -3,6 +3,13 @@
   "private": true,
   "packageManager": "pnpm@10.26.1",
   "scripts": {
+    "infra:up": "docker compose -f docker-compose.infra.yml up -d",
+    "infra:down": "docker compose -f docker-compose.infra.yml down",
+    "infra:logs": "docker compose -f docker-compose.infra.yml logs -f postgres",
+    "api:dev": ".venv/bin/python -m vocab_api",
+    "dev:api": "pnpm api:dev",
+    "dev:web": "pnpm web:dev",
+    "dev": "pnpm infra:up && sh -c 'pnpm api:dev & pnpm web:dev & wait'",
     "web:dev": "pnpm --filter @vocab-estimator/web dev",
     "web:build": "pnpm --filter @vocab-estimator/web build",
     "web:test": "pnpm --filter @vocab-estimator/web test"
@@ -11,4 +18,3 @@
     "prettier": "^3.7.4"
   }
 }
-

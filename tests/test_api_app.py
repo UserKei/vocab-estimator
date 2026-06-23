@@ -84,6 +84,46 @@ class ApiAppTests(unittest.TestCase):
                     self.assertEqual(final_response.status_code, 200)
                     self.assertEqual(final_response.json()["sample_size"], 4)
 
+                    adaptive_response = client.post(
+                        "/api/adaptive-test-sessions",
+                        json={"seed": 31, "max_items": 6, "min_items": 3, "start_rank": 1000},
+                    )
+                    self.assertEqual(adaptive_response.status_code, 200)
+                    adaptive = adaptive_response.json()
+                    self.assertFalse(adaptive["completed"])
+                    first_word = adaptive["current_word"]
+                    self.assertIsNotNone(first_word)
+
+                    harder_response = client.post(
+                        f"/api/adaptive-test-sessions/{adaptive['session_id']}/answer",
+                        json={
+                            "responses": [{"word": first_word["word"], "status": "known"}],
+                            "seed": 31,
+                            "max_items": 6,
+                            "min_items": 3,
+                            "start_rank": 1000,
+                        },
+                    )
+                    self.assertEqual(harder_response.status_code, 200)
+                    harder = harder_response.json()
+                    self.assertIsNotNone(harder["current_word"])
+                    self.assertGreater(harder["current_word"]["rank"], first_word["rank"])
+
+                    complete_response = client.post(
+                        f"/api/adaptive-test-sessions/{adaptive['session_id']}/answer",
+                        json={
+                            "responses": [{"word": first_word["word"], "status": "known"}],
+                            "seed": 31,
+                            "max_items": 1,
+                            "min_items": 1,
+                            "start_rank": 1000,
+                        },
+                    )
+                    self.assertEqual(complete_response.status_code, 200)
+                    complete = complete_response.json()
+                    self.assertTrue(complete["completed"])
+                    self.assertIsNotNone(complete["estimate"])
+
                     created_response = client.post(
                         "/api/student-results",
                         json={
