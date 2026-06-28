@@ -2,7 +2,9 @@
 
 ## 调研结论
 
-本项目将词汇测试页从“分页词表批量标记”调整为“单词逐个出现 + 认识/不认识/不确定 + 动态调整难度”的自适应测试流程。
+本文件记录早期自适应逐词测试方案调研。当前 GUI 主流程已经调整为 150 词两阶段测试：第一阶段 40 词粗定位，第二阶段 110 词区间采样，只保留“认识 / 不认识”二态答案。自适应 API 仍作为非主流程能力保留。
+
+早期方案曾计划将词汇测试页从“分页词表批量标记”调整为“单词逐个出现 + 认识/不认识/不确定 + 动态调整难度”的自适应测试流程。
 
 这个方向更符合公开词汇量测试和计算机化自适应测试的常见做法：
 
@@ -16,9 +18,9 @@
 - Computerized adaptive testing 概念：https://en.wikipedia.org/wiki/Computerized_adaptive_testing
 - BOBCAT 论文方向（自适应词汇测试研究）：https://arxiv.org/abs/2108.12731
 
-## 本项目采用的轻量方案
+## 早期采用的轻量方案
 
-项目不引入完整 IRT 标定模型，原因是课程设计没有题库标定数据，也不需要复杂考试系统。当前实现采用 rank-based adaptive cutoff：
+项目不引入完整 IRT 标定模型，原因是课程设计没有题库标定数据，也不需要复杂考试系统。自适应 API 采用 rank-based adaptive cutoff：
 
 - 词频 rank 越小，词越常见，题目越容易。
 - 用户选择“认识”后，下一题向更高 rank 移动，即更难。
@@ -30,7 +32,7 @@
 ## 与原始需求的对应关系
 
 - “设计一至多种用户词汇量估算算法”：当前保留 rank midpoint + bootstrap，同时新增自适应 rank cutoff。
-- “GUI 演示测试”：前端改为每次只显示一个单词，操作更接近实际在线词汇测试。
+- “GUI 演示测试”：当前前端改为 150 词两阶段逐词测试，操作更接近 TestYourVocab 这类实际在线词汇测试。
 - “后台批处理测试”：CSV 上传批处理保持不变，用于批量验证。
 - “给出词汇量估计范围 + 置信度”：自适应结果同样输出范围与置信度。
 - “找不同学生每个人测试 3-5 次”：逐词测试更适合真实同学完成，结果仍可保存到学生记录。
@@ -39,5 +41,5 @@
 
 - 算法：`packages/estimator/src/vocab_estimator/adaptive.py`
 - API：`POST /api/adaptive-test-sessions` 与 `POST /api/adaptive-test-sessions/{session_id}/answer`
-- 前端：`apps/web/src/App.tsx`
+- 前端主流程：`apps/web/src/pages/test-page.tsx`、`apps/web/src/hooks/use-two-stage-test.ts`
 - 测试：`tests/test_estimator_core.py`、`tests/test_api_app.py`、`apps/web/src/App.test.tsx`

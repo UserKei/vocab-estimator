@@ -6,7 +6,7 @@ from pathlib import Path
 import csv
 import json
 
-from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile
 from sqlmodel import Session
 from vocab_estimator.models import AdaptiveState
 from vocab_experiments.stability import run_stability_experiment
@@ -29,6 +29,7 @@ from .schemas import (
     StabilityExperimentRequest,
     StudentResultCreate,
     StudentResultOut,
+    StudentResultsPageOut,
     TextEstimateOut,
     TextEstimateRequest,
     TextEstimateRow,
@@ -90,6 +91,7 @@ def create_app() -> FastAPI:
             [(item.word, item.known) for item in payload.responses],
             seed,
             payload.stage2_size,
+            payload.excluded_words,
         )
         return TestSessionOut(
             session_id=session_id,
@@ -165,12 +167,25 @@ def create_app() -> FastAPI:
         record = create_student_result(session, payload)
         return StudentResultOut.model_validate(record, from_attributes=True)
 
-    @app.get("/api/student-results", response_model=list[StudentResultOut])
-    def list_student_results_route(session: Session = Depends(get_session)) -> list[StudentResultOut]:
-        return [
+    @app.get("/api/student-results", response_model=StudentResultsPageOut)
+    def list_student_results_route(
+        page: int = Query(default=1, ge=1),
+        page_size: int = Query(default=10, ge=1, le=100),
+        session: Session = Depends(get_session),
+    ) -> StudentResultsPageOut:
+        records, total = list_student_results(session, page=page, page_size=page_size)
+        pages = (total + page_size - 1) // page_size if total else 0
+        items = [
             StudentResultOut.model_validate(record, from_attributes=True)
-            for record in list_student_results(session)
+            for record in records
         ]
+        return StudentResultsPageOut(
+            items=items,
+            total=total,
+            page=page,
+            page_size=page_size,
+            pages=pages,
+        )
 
     @app.post("/api/experiments/stability", response_model=StabilityExperimentOut)
     def run_stability_experiment_route(payload: StabilityExperimentRequest) -> StabilityExperimentOut:

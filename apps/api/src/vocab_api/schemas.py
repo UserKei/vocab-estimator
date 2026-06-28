@@ -76,7 +76,8 @@ class AdaptiveSessionOut(BaseModel):
 class NextStageRequest(BaseModel):
     responses: list[EstimateResponseInput] = Field(min_length=1)
     seed: int | None = None
-    stage2_size: int = Field(default=80, ge=4, le=240)
+    stage2_size: int = Field(default=110, ge=4, le=240)
+    excluded_words: list[str] = Field(default_factory=list)
 
 
 class FinalEstimateRequest(BaseModel):
@@ -141,8 +142,9 @@ class ReportOutputsOut(BaseModel):
 
 class StudentResultCreate(BaseModel):
     student_code: str = Field(min_length=1)
-    cet4_score: int | None = None
-    cet6_score: int | None = None
+    student_name: str = Field(min_length=1)
+    cet4_score: int | None = Field(default=None, ge=0, le=710)
+    cet6_score: int | None = Field(default=None, ge=0, le=710)
     estimate: int
     range_low: int
     range_high: int
@@ -154,6 +156,7 @@ class StudentResultCreate(BaseModel):
 class StudentResultOut(BaseModel):
     id: int
     student_code: str
+    student_name: str
     cet4_score: int | None
     cet6_score: int | None
     estimate: int
@@ -162,6 +165,14 @@ class StudentResultOut(BaseModel):
     confidence: float
     method: str
     created_at: datetime
+
+
+class StudentResultsPageOut(BaseModel):
+    items: list[StudentResultOut]
+    total: int
+    page: int
+    page_size: int
+    pages: int
 
 
 class HealthOut(BaseModel):

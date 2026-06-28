@@ -15,7 +15,7 @@ class ApiAppTests(unittest.TestCase):
             database = tmp_path / "api.db"
             word_rank.write_text(
                 "word,rank,frequency,source\n"
-                + "".join(f"{_word_name(i)},{i * 100},0.0,fixture\n" for i in range(1, 41)),
+                + "".join(f"{_word_name(i)},{i * 100},0.0,fixture\n" for i in range(1, 241)),
                 encoding="utf-8",
             )
             with _patched_env(word_rank, database):
@@ -62,6 +62,7 @@ class ApiAppTests(unittest.TestCase):
                             ],
                             "seed": 23,
                             "stage2_size": 8,
+                            "excluded_words": [item["word"] for item in session["words"]],
                         },
                     )
                     self.assertEqual(next_stage_response.status_code, 200)
@@ -69,6 +70,54 @@ class ApiAppTests(unittest.TestCase):
                     self.assertEqual(next_stage["stage"], 2)
                     self.assertEqual(len(next_stage["words"]), 8)
                     self.assertTrue(all(item["stage"] == 2 for item in next_stage["words"]))
+                    self.assertTrue(
+                        {item["word"] for item in next_stage["words"]}.isdisjoint(
+                            {item["word"] for item in session["words"]}
+                        )
+                    )
+
+                    full_next_stage_response = client.post(
+                        f"/api/test-sessions/{session['session_id']}/next",
+                        json={
+                            "responses": [
+                                {"word": item["word"], "known": index < 3}
+                                for index, item in enumerate(session["words"])
+                            ],
+                            "seed": 29,
+                            "stage2_size": 110,
+                            "excluded_words": [item["word"] for item in session["words"]],
+                        },
+                    )
+                    self.assertEqual(full_next_stage_response.status_code, 200)
+                    full_next_stage = full_next_stage_response.json()
+                    self.assertEqual(len(full_next_stage["words"]), 110)
+                    self.assertTrue(
+                        {item["word"] for item in full_next_stage["words"]}.isdisjoint(
+                            {item["word"] for item in session["words"]}
+                        )
+                    )
+
+                    excluded_only_response = client.post(
+                        f"/api/test-sessions/{session['session_id']}/next",
+                        json={
+                            "responses": [
+                                {"word": session["words"][0]["word"], "known": True},
+                                {"word": session["words"][1]["word"], "known": True},
+                                {"word": session["words"][2]["word"], "known": False},
+                                {"word": session["words"][3]["word"], "known": False},
+                            ],
+                            "seed": 31,
+                            "stage2_size": 236,
+                            "excluded_words": [item["word"] for item in session["words"]],
+                        },
+                    )
+                    self.assertEqual(excluded_only_response.status_code, 200)
+                    excluded_only = excluded_only_response.json()
+                    self.assertTrue(
+                        {item["word"] for item in excluded_only["words"]}.isdisjoint(
+                            {item["word"] for item in session["words"]}
+                        )
+                    )
 
                     final_response = client.post(
                         f"/api/test-sessions/{session['session_id']}/estimate",
@@ -128,6 +177,7 @@ class ApiAppTests(unittest.TestCase):
                         "/api/student-results",
                         json={
                             "student_code": "S001",
+                            "student_name": "张三",
                             "cet4_score": 520,
                             "cet6_score": 480,
                             "estimate": estimate["estimate"],
@@ -140,10 +190,88 @@ class ApiAppTests(unittest.TestCase):
                     )
                     self.assertEqual(created_response.status_code, 200)
                     self.assertEqual(created_response.json()["student_code"], "S001")
+                    self.assertEqual(created_response.json()["student_name"], "张三")
 
-                    list_response = client.get("/api/student-results")
+                    optional_scores_response = client.post(
+                        "/api/student-results",
+                        json={
+                            "student_code": "S002",
+                            "student_name": "李四",
+                            "cet4_score": None,
+                            "cet6_score": None,
+                            "estimate": estimate["estimate"],
+                            "range_low": estimate["range_low"],
+                            "range_high": estimate["range_high"],
+                            "confidence": estimate["confidence"],
+                            "method": estimate["method"],
+                            "responses": [],
+                        },
+                    )
+                    self.assertEqual(optional_scores_response.status_code, 200)
+                    self.assertIsNone(optional_scores_response.json()["cet4_score"])
+                    self.assertIsNone(optional_scores_response.json()["cet6_score"])
+
+                    invalid_missing_name_response = client.post(
+                        "/api/student-results",
+                        json={
+                            "student_code": "S003",
+                            "estimate": estimate["estimate"],
+                            "range_low": estimate["range_low"],
+                            "range_high": estimate["range_high"],
+                            "confidence": estimate["confidence"],
+                            "method": estimate["method"],
+                        },
+                    )
+                    self.assertEqual(invalid_missing_name_response.status_code, 422)
+
+                    invalid_score_response = client.post(
+                        "/api/student-results",
+                        json={
+                            "student_code": "S003",
+                            "student_name": "王五",
+                            "cet4_score": 711,
+                            "cet6_score": -1,
+                            "estimate": estimate["estimate"],
+                            "range_low": estimate["range_low"],
+                            "range_high": estimate["range_high"],
+                            "confidence": estimate["confidence"],
+                            "method": estimate["method"],
+                        },
+                    )
+                    self.assertEqual(invalid_score_response.status_code, 422)
+
+                    third_record_response = client.post(
+                        "/api/student-results",
+                        json={
+                            "student_code": "S003",
+                            "student_name": "王五",
+                            "cet4_score": 430,
+                            "cet6_score": 500,
+                            "estimate": estimate["estimate"],
+                            "range_low": estimate["range_low"],
+                            "range_high": estimate["range_high"],
+                            "confidence": estimate["confidence"],
+                            "method": estimate["method"],
+                            "responses": [],
+                        },
+                    )
+                    self.assertEqual(third_record_response.status_code, 200)
+
+                    list_response = client.get("/api/student-results?page=1&page_size=2")
                     self.assertEqual(list_response.status_code, 200)
-                    self.assertEqual(len(list_response.json()), 1)
+                    first_page = list_response.json()
+                    self.assertEqual(first_page["total"], 3)
+                    self.assertEqual(first_page["page"], 1)
+                    self.assertEqual(first_page["page_size"], 2)
+                    self.assertEqual(first_page["pages"], 2)
+                    self.assertEqual(len(first_page["items"]), 2)
+                    self.assertEqual(first_page["items"][0]["student_code"], "S003")
+
+                    second_page_response = client.get("/api/student-results?page=2&page_size=2")
+                    self.assertEqual(second_page_response.status_code, 200)
+                    second_page = second_page_response.json()
+                    self.assertEqual(len(second_page["items"]), 1)
+                    self.assertEqual(second_page["items"][0]["student_code"], "S001")
 
                     batch_response = client.post(
                         "/api/batch",

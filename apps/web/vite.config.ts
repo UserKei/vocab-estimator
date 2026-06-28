@@ -7,7 +7,7 @@ import { loadEnv } from "vite"
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, path.resolve(__dirname, "../.."), "")
   const apiPort = Number.parseInt(env.VOCAB_API_PORT || "8000", 10)
-  const webPort = Number.parseInt(env.VOCAB_WEB_PORT || "5173", 10)
+  const webPort = Number.parseInt(env.VOCAB_WEB_PORT || "5010", 10)
 
   return {
     plugins: [react(), tailwindcss()],

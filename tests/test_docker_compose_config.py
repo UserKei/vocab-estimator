@@ -52,7 +52,7 @@ def test_env_example_keeps_local_configuration_minimal():
         "VOCAB_DATABASE_URL=postgresql+psycopg://vocab:vocab@127.0.0.1:5432/vocab_estimator",
         "VOCAB_WORD_RANK_PATH=data/wordlists/word_rank.csv",
         "VOCAB_API_PORT=8000",
-        "VOCAB_WEB_PORT=5173",
+        "VOCAB_WEB_PORT=5010",
     ]:
         assert expected in env_example
     for unnecessary in [

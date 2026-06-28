@@ -11,6 +11,7 @@ class StudentResult(SQLModel, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     student_code: str = Field(index=True)
+    student_name: str
     cet4_score: int | None = None
     cet6_score: int | None = None
     estimate: int

@@ -165,6 +165,27 @@ class EstimatorCoreTests(unittest.TestCase):
         self.assertEqual(len({word.word for word in words}), 8)
         self.assertTrue(all(400 <= word.rank <= 2800 for word in words))
 
+    def test_second_stage_generates_110_words_and_excludes_first_stage_words(self) -> None:
+        ranks = load_word_ranks(_write_rank_fixture([(_word_name(i), i * 100) for i in range(1, 241)]))
+        first_stage_words = [_word_name(i) for i in range(1, 41)]
+        first_stage_responses = [
+            VocabularyResponse(word, index < 20)
+            for index, word in enumerate(first_stage_words)
+        ]
+
+        words = generate_second_stage_words(
+            ranks,
+            first_stage_responses,
+            count=110,
+            seed=41,
+            excluded_words=first_stage_words,
+        )
+
+        self.assertEqual(len(words), 110)
+        self.assertEqual([word.stage for word in words], [2] * 110)
+        self.assertEqual(len({word.word for word in words}), 110)
+        self.assertTrue({word.word for word in words}.isdisjoint(first_stage_words))
+
     def test_adaptive_test_moves_difficulty_after_each_answer(self) -> None:
         ranks = load_word_ranks(_write_rank_fixture([(_word_name(i), i * 100) for i in range(1, 61)]))
 

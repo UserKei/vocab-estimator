@@ -33,9 +33,20 @@ def generate_first_stage(seed: int | None, count: int) -> list[TestWord]:
     return generate_first_stage_words(load_default_word_ranks(), count=count, seed=seed)
 
 
-def generate_next_stage(responses: list[tuple[str, bool]], seed: int | None, count: int) -> list[TestWord]:
+def generate_next_stage(
+    responses: list[tuple[str, bool]],
+    seed: int | None,
+    count: int,
+    excluded_words: list[str] | None = None,
+) -> list[TestWord]:
     normalized = [VocabularyResponse(word, known) for word, known in responses]
-    return generate_second_stage_words(load_default_word_ranks(), normalized, count=count, seed=seed)
+    return generate_second_stage_words(
+        load_default_word_ranks(),
+        normalized,
+        count=count,
+        seed=seed,
+        excluded_words=excluded_words or [],
+    )
 
 
 def generate_adaptive_session(
