@@ -105,8 +105,8 @@ describe("App", () => {
     render(<App />)
 
     expect(screen.getByText("vocab-estimator")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "概览" })).toHaveAttribute("href", "/")
-    expect(screen.getByRole("link", { name: "词汇测试" })).toHaveAttribute("href", "/test")
+    expect(screen.queryByRole("link", { name: "概览" })).not.toBeInTheDocument()
+    expect(navLink("词汇测试")).toHaveAttribute("href", "/test")
     expect(screen.getByRole("link", { name: "批处理" })).toHaveAttribute("href", "/batch")
     expect(screen.getByRole("link", { name: "学生记录" })).toHaveAttribute("href", "/students")
     expect(screen.getByRole("link", { name: "实验输出" })).toHaveAttribute("href", "/reports")
@@ -123,10 +123,10 @@ describe("App", () => {
   it("navigates to the vocabulary test page and answers adaptive words", async () => {
     render(<App />)
 
-    fireEvent.click(screen.getByRole("link", { name: "词汇测试" }))
+    fireEvent.click(navLink("词汇测试"))
     await waitFor(() => expect(screen.getByText("alpha")).toBeInTheDocument())
-    expect(screen.getByText("首页")).toBeInTheDocument()
-    expect(screen.getAllByText("词汇测试").length).toBeGreaterThanOrEqual(2)
+    expect(screen.queryByText("首页")).not.toBeInTheDocument()
+    expect(screen.getAllByText("词汇测试").length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText("rank 100").closest("[data-slot='badge']")).toBeInstanceOf(HTMLElement)
 
     fireEvent.click(screen.getByRole("button", { name: "认识" }))
@@ -196,4 +196,13 @@ describe("App", () => {
 
 function jsonResponse(body: unknown) {
   return new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } })
+}
+
+function navLink(name: string) {
+  const link = screen
+    .getAllByRole("link", { name })
+    .find((element) => element instanceof HTMLAnchorElement && element.getAttribute("href")?.startsWith("/"))
+
+  expect(link).toBeInstanceOf(HTMLAnchorElement)
+  return link as HTMLAnchorElement
 }

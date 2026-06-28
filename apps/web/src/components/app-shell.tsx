@@ -1,12 +1,10 @@
-import { BookOpenCheck, Database, FileUp, FlaskConical, Home, Users } from "lucide-react"
+import { BookOpenCheck, Database, FileUp, FlaskConical, Users } from "lucide-react"
 import { Link, NavLink, Outlet, useLocation } from "react-router"
 import {
   Breadcrumb,
   BreadcrumbItem,
-  BreadcrumbLink,
   BreadcrumbList,
   BreadcrumbPage,
-  BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
 import {
   Sidebar,
@@ -24,7 +22,6 @@ import {
 import { Toaster } from "@/components/ui/sonner"
 
 const navItems = [
-  { title: "概览", href: "/", icon: Home },
   { title: "词汇测试", href: "/test", icon: BookOpenCheck },
   { title: "批处理", href: "/batch", icon: FileUp },
   { title: "学生记录", href: "/students", icon: Users },
@@ -32,7 +29,6 @@ const navItems = [
 ]
 
 const pageTitles: Record<string, string> = {
-  "/": "概览",
   "/test": "词汇测试",
   "/batch": "批处理",
   "/students": "学生记录",
@@ -41,7 +37,7 @@ const pageTitles: Record<string, string> = {
 
 export function AppShell() {
   const location = useLocation()
-  const pageTitle = pageTitles[location.pathname] ?? "概览"
+  const pageTitle = pageTitles[location.pathname] ?? "词汇测试"
 
   return (
     <SidebarProvider>
@@ -50,7 +46,7 @@ export function AppShell() {
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton asChild size="lg">
-                <Link to="/">
+                <Link to="/test">
                   <Database />
                   <span className="font-semibold">vocab-estimator</span>
                 </Link>
@@ -83,18 +79,8 @@ export function AppShell() {
           <Breadcrumb>
             <BreadcrumbList>
               <BreadcrumbItem>
-                <BreadcrumbLink asChild>
-                  <Link to="/">首页</Link>
-                </BreadcrumbLink>
+                <BreadcrumbPage>{pageTitle}</BreadcrumbPage>
               </BreadcrumbItem>
-              {location.pathname !== "/" ? (
-                <>
-                  <BreadcrumbSeparator />
-                  <BreadcrumbItem>
-                    <BreadcrumbPage>{pageTitle}</BreadcrumbPage>
-                  </BreadcrumbItem>
-                </>
-              ) : null}
             </BreadcrumbList>
           </Breadcrumb>
         </header>

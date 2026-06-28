@@ -24,7 +24,7 @@
 
 前端仍是 Vite SPA，使用 React Router 管理页面：
 
-- `/`：概览页，展示四个课程任务入口和最近估算摘要。
+- `/`：直接跳转到 `/test`，打开系统后优先进入 GUI 词汇测试。
 - `/test`：GUI 词汇测试，一词一屏，支持认识、不认识、不确定。
 - `/batch`：后台 CSV 批处理，支持拖拽或选择 CSV 文件上传。
 - `/students`：学生测试记录，保存姓名或代号、四六级成绩、估算结果，表格分页展示。
@@ -38,24 +38,12 @@
 
 - `SidebarProvider`、`Sidebar`、`SidebarInset`：提供应用侧栏和主内容区域。
 - `SidebarMenuButton`：承载页面导航项和 active 状态。
-- `Breadcrumb`：展示 `首页 / 当前页面`。
-- `Separator`：分隔顶部工具栏。
+- `Breadcrumb`：展示当前页面名称。
 - `sonner`：保留 toast 能力。
 
 shadcn 组件源码由 CLI 生成后直接使用，业务组合逻辑放在 `src/components/`、`src/pages/` 和 `src/hooks/`，避免把业务样式写进 `components/ui/*`。
 
 ## 页面职责
-
-### 概览页
-
-展示四个课程任务入口：
-
-- GUI 词汇测试
-- CSV 批处理
-- 学生记录
-- 实验输出
-
-同时展示最近估计值、最近样本量、可保存回答数，方便演示时快速确认当前状态。
 
 ### 词汇测试页
 
