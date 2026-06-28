@@ -77,7 +77,7 @@ export function BatchPage() {
           <AlertDescription>{message}</AlertDescription>
         </Alert>
       ) : null}
-      <div className="grid gap-5 lg:grid-cols-[1fr_0.85fr]">
+      <div className={cn("grid gap-5", estimate ? "lg:grid-cols-[1fr_0.85fr]" : "max-w-3xl")}>
         <Card>
           <CardHeader>
             <CardTitle>CSV 批处理估算</CardTitle>
@@ -123,13 +123,15 @@ export function BatchPage() {
             </Button>
           </CardFooter>
         </Card>
-        <ResultCard
-          estimate={estimate}
-          answeredCount={0}
-          totalWords={0}
-          progress={0}
-          statusLabel={batchFile ? "已选择文件" : "等待文件"}
-        />
+        {estimate ? (
+          <ResultCard
+            estimate={estimate}
+            answeredCount={0}
+            totalWords={0}
+            progress={0}
+            statusLabel="已完成"
+          />
+        ) : null}
       </div>
     </>
   )

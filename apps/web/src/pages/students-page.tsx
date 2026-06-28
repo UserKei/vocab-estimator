@@ -142,6 +142,7 @@ export function StudentsPage() {
             totalWords={latestResponses.length}
             progress={latestEstimate ? 100 : 0}
             statusLabel={latestEstimate ? "可保存" : "等待估算"}
+            pendingDescription="完成一次词汇测试或批处理估算后，可以在这里预览将保存的结果。"
           />
         </div>
         <Card>

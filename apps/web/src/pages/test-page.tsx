@@ -49,7 +49,7 @@ export function TestPage() {
           </CardHeader>
           <CardContent className="flex flex-col gap-5 pt-6">
             <div className="flex flex-col gap-2">
-              <Progress value={progress} />
+              <Progress value={progress} className="[&_[data-slot=progress-indicator]]:transition-none" />
               <div className="flex flex-col gap-1 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
                 <span>{`${answeredCount}/${totalWords}`}</span>
                 <span>{stage === 1 ? "第一阶段粗定位：40 词" : "第二阶段窄范围采样：110 词"}</span>
@@ -121,6 +121,7 @@ export function TestPage() {
           totalWords={totalWords}
           progress={progress}
           statusLabel={estimate ? "已完成" : `阶段 ${stage}`}
+          pendingDescription="完成 150 词测试后会生成估算结果。"
         />
       </div>
     </>

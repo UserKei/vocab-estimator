@@ -190,6 +190,8 @@ describe("App", () => {
     render(<App />)
 
     fireEvent.click(screen.getByRole("link", { name: "批处理" }))
+    expect(screen.queryByText("估算结果")).not.toBeInTheDocument()
+    expect(screen.queryByText("等待结果")).not.toBeInTheDocument()
     const file = new File(["word,status\nalpha,known\nomega,unknown\n"], "responses.csv", { type: "text/csv" })
     fireEvent.change(screen.getByLabelText("选择 CSV 文件"), { target: { files: [file] } })
     await waitFor(() => expect(screen.getByText(/responses\.csv/)).toBeInTheDocument())
@@ -198,6 +200,9 @@ describe("App", () => {
     fireEvent.click(uploadButton)
 
     await waitFor(() => expect(screen.getByText("批处理任务 #7 已保存")).toBeInTheDocument())
+    expect(screen.getByText("估算结果")).toBeInTheDocument()
+    expect(screen.getByText("4200")).toBeInTheDocument()
+    expect(screen.queryByText("等待结果")).not.toBeInTheDocument()
     expect(fetch).toHaveBeenCalledWith("/api/batch", expect.objectContaining({
       method: "POST",
       body: expect.any(FormData),

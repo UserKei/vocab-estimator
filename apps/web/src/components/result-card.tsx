@@ -1,9 +1,7 @@
-import { Database } from "lucide-react"
 import type { EstimateResult } from "@/api"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Progress } from "@/components/ui/progress"
 import { MetricCard } from "./metric-card"
 
@@ -13,12 +11,14 @@ export function ResultCard({
   totalWords,
   progress,
   statusLabel,
+  pendingDescription = "完成测试后会生成估算结果。",
 }: {
   estimate: EstimateResult | null
   answeredCount: number
   totalWords: number
   progress: number
   statusLabel: string
+  pendingDescription?: string
 }) {
   const progressLabel = totalWords ? `${Math.round(progress)}%` : "--"
 
@@ -53,26 +53,17 @@ export function ResultCard({
             <div className="flex items-start justify-between gap-3">
               <div className="flex flex-col gap-1">
                 <p className="text-sm font-medium">本次测试进度</p>
-                <p className="text-sm text-muted-foreground">完成测试或上传 CSV 后会生成估算结果。</p>
+                <p className="text-sm text-muted-foreground">{pendingDescription}</p>
               </div>
               <Badge variant="outline">{statusLabel}</Badge>
             </div>
-            <Progress value={progress} />
+            <Progress value={progress} className="[&_[data-slot=progress-indicator]]:transition-none" />
             <div className="grid grid-cols-2 gap-3">
               <MetricCard label="已完成" value={`${answeredCount}/${totalWords || "--"}`} />
               <MetricCard label="当前进度" value={progressLabel} />
               <MetricCard label="估计范围" value="--" />
               <MetricCard label="置信度" value="--" />
             </div>
-            <Empty className="min-h-40 border bg-background p-8">
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <Database />
-                </EmptyMedia>
-                <EmptyTitle>等待结果</EmptyTitle>
-                <EmptyDescription>完成测试或上传 CSV 后，这里会显示词汇量、范围和置信度。</EmptyDescription>
-              </EmptyHeader>
-            </Empty>
           </div>
         )}
       </CardContent>
