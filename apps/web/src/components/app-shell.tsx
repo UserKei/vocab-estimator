@@ -24,14 +24,14 @@ import { Toaster } from "@/components/ui/sonner"
 const navItems = [
   { title: "词汇测试", href: "/test", icon: BookOpenCheck },
   { title: "批处理", href: "/batch", icon: FileUp },
-  { title: "学生记录", href: "/students", icon: Users },
+  { title: "测试记录", href: "/students", icon: Users },
   { title: "实验输出", href: "/reports", icon: FlaskConical },
 ]
 
 const pageTitles: Record<string, string> = {
   "/test": "词汇测试",
   "/batch": "批处理",
-  "/students": "学生记录",
+  "/students": "测试记录",
   "/reports": "实验输出",
 }
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useState } from "react"
 import {
   createTestSession,
   estimateTestSession,
@@ -23,7 +23,6 @@ export function useTwoStageTest() {
   const [estimate, setEstimate] = useState<EstimateResult | null>(null)
   const [message, setMessage] = useState("")
   const [isBusy, setIsBusy] = useState(false)
-  const hasStarted = useRef(false)
 
   const answeredCount = responses.length
   const currentWord = estimate ? null : session?.words[currentIndex] ?? null
@@ -32,7 +31,6 @@ export function useTwoStageTest() {
 
   const startNewTest = useCallback(async () => {
     const nextSeed = Date.now() % 100000
-    hasStarted.current = true
     setSeed(nextSeed)
     setIsBusy(true)
     setMessage("")
@@ -50,11 +48,15 @@ export function useTwoStageTest() {
     }
   }, [setLatestEstimate])
 
-  useEffect(() => {
-    if (!hasStarted.current) {
-      void startNewTest()
-    }
-  }, [startNewTest])
+  const resetTest = useCallback(() => {
+    setSession(null)
+    setResponses([])
+    setCurrentIndex(0)
+    setEstimate(null)
+    setMessage("")
+    setIsBusy(false)
+    setLatestEstimate(null, [])
+  }, [setLatestEstimate])
 
   const answerCurrentWord = useCallback(async (known: boolean) => {
     if (!session || !currentWord) {
@@ -113,6 +115,7 @@ export function useTwoStageTest() {
     message,
     progress,
     responses,
+    resetTest,
     session,
     stage,
     startNewTest,

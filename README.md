@@ -27,6 +27,10 @@
 - [x] 实现 PostgreSQL + SQLModel + Alembic 数据保存
 - [x] 实现 GUI 演示测试流程
 - [x] 实现学生测试记录和四六级成绩记录
+- [x] 词汇测试前增加学号、姓名、可选四六级成绩表单
+- [x] 测试完成后自动保存测试记录到数据库
+- [x] 测试记录页改为数据库分页查询
+- [x] UI 文案从“学生记录”调整为“测试记录”
 - [x] 实现 Docker Compose 和 `deploy.sh`
 - [x] 实现本地开发 Docker infra，只启动 PostgreSQL，并配置根 `package.json` 启动脚本
 - [x] Web 服务使用默认 HTTP 80 端口，方便同学直接访问
@@ -58,7 +62,7 @@
 - [x] 新建 `frontend-pages-redesign` 分支重写前端页面结构
 - [x] 前端从 Tabs 改为 React Router 多页面路由
 - [x] 使用 shadcn Sidebar 和 Breadcrumb 搭建应用布局
-- [x] 学生记录和实验输出使用 TanStack Table 分页展示
+- [x] 测试记录使用后端分页查询，实验输出使用 TanStack Table 分页展示
 - [x] 本地 Vite 前端默认端口对齐为 5010
 - [x] 写入前端多页面重写技术方案文档
 - [x] 移除顶部栏 SidebarTrigger 与面包屑之间的残缺竖向分隔符

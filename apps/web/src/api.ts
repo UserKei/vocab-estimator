@@ -58,6 +58,7 @@ export type BatchJob = {
 export type StudentResult = {
   id: number
   student_code: string
+  student_name: string
   cet4_score: number | null
   cet6_score: number | null
   estimate: number
@@ -66,6 +67,14 @@ export type StudentResult = {
   confidence: number
   method: string
   created_at: string
+}
+
+export type StudentResultsPage = {
+  items: StudentResult[]
+  total: number
+  page: number
+  page_size: number
+  pages: number
 }
 
 export type ReportOutputs = {
@@ -153,6 +162,7 @@ export async function uploadBatchCsv(file: File) {
 
 export function saveStudentResult(payload: {
   student_code: string
+  student_name: string
   cet4_score?: number | null
   cet6_score?: number | null
   estimate: number
@@ -168,8 +178,8 @@ export function saveStudentResult(payload: {
   })
 }
 
-export function listStudentResults() {
-  return requestJson<StudentResult[]>("/api/student-results")
+export function listStudentResults(page = 1, pageSize = 10) {
+  return requestJson<StudentResultsPage>(`/api/student-results?page=${page}&page_size=${pageSize}`)
 }
 
 export function fetchReportOutputs() {

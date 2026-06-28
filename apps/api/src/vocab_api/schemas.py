@@ -142,8 +142,9 @@ class ReportOutputsOut(BaseModel):
 
 class StudentResultCreate(BaseModel):
     student_code: str = Field(min_length=1)
-    cet4_score: int | None = None
-    cet6_score: int | None = None
+    student_name: str = Field(min_length=1)
+    cet4_score: int | None = Field(default=None, ge=0, le=710)
+    cet6_score: int | None = Field(default=None, ge=0, le=710)
     estimate: int
     range_low: int
     range_high: int
@@ -155,6 +156,7 @@ class StudentResultCreate(BaseModel):
 class StudentResultOut(BaseModel):
     id: int
     student_code: str
+    student_name: str
     cet4_score: int | None
     cet6_score: int | None
     estimate: int
@@ -163,6 +165,14 @@ class StudentResultOut(BaseModel):
     confidence: float
     method: str
     created_at: datetime
+
+
+class StudentResultsPageOut(BaseModel):
+    items: list[StudentResultOut]
+    total: int
+    page: int
+    page_size: int
+    pages: int
 
 
 class HealthOut(BaseModel):

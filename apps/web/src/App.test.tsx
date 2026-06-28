@@ -62,13 +62,15 @@ vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit
       created_at: "2026-06-22T00:00:00",
     })
   }
-  if (url.endsWith("/api/student-results")) {
+  if (url.includes("/api/student-results")) {
     if ((init?.method ?? "GET") === "POST") {
+      const body = JSON.parse(String(init?.body ?? "{}")) as { student_code?: string; student_name?: string }
       return jsonResponse({
         id: 8,
-        student_code: "S100",
-        cet4_score: 520,
-        cet6_score: 480,
+        student_code: body.student_code ?? "S100",
+        student_name: body.student_name ?? "李四",
+        cet4_score: null,
+        cet6_score: null,
         estimate: 4200,
         range_low: 3800,
         range_high: 4700,
@@ -77,20 +79,27 @@ vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit
         created_at: "2026-06-22T00:00:00",
       })
     }
-    return jsonResponse([
-      {
-        id: 1,
-        student_code: "S001",
-        cet4_score: 430,
-        cet6_score: null,
-        estimate: 3750,
-        range_low: 3300,
-        range_high: 4200,
-        confidence: 0.62,
-        method: "rank_midpoint_bootstrap_v1",
-        created_at: "2026-06-22T00:00:00",
-      },
-    ])
+    return jsonResponse({
+      items: [
+        {
+          id: 1,
+          student_code: "S001",
+          student_name: "张三",
+          cet4_score: 430,
+          cet6_score: null,
+          estimate: 3750,
+          range_low: 3300,
+          range_high: 4200,
+          confidence: 0.62,
+          method: "rank_midpoint_bootstrap_v1",
+          created_at: "2026-06-22T00:00:00",
+        },
+      ],
+      total: 1,
+      page: 1,
+      page_size: 5,
+      pages: 1,
+    })
   }
   return jsonResponse({ status: "ok" })
 }))
@@ -109,7 +118,7 @@ describe("App", () => {
     expect(screen.queryByRole("link", { name: "概览" })).not.toBeInTheDocument()
     expect(navLink("词汇测试")).toHaveAttribute("href", "/test")
     expect(screen.getByRole("link", { name: "批处理" })).toHaveAttribute("href", "/batch")
-    expect(screen.getByRole("link", { name: "学生记录" })).toHaveAttribute("href", "/students")
+    expect(screen.getByRole("link", { name: "测试记录" })).toHaveAttribute("href", "/students")
     expect(screen.getByRole("link", { name: "实验输出" })).toHaveAttribute("href", "/reports")
     expect(screen.queryByRole("tab", { name: "词汇测试" })).not.toBeInTheDocument()
   })
@@ -125,6 +134,20 @@ describe("App", () => {
     render(<App />)
 
     fireEvent.click(navLink("词汇测试"))
+    expect(screen.getByText("测评信息")).toBeInTheDocument()
+    expect(screen.getByPlaceholderText("请输入学号")).toBeInTheDocument()
+    expect(screen.getByPlaceholderText("请输入姓名")).toBeInTheDocument()
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).endsWith("/api/test-sessions"))).toBe(false)
+
+    fireEvent.click(screen.getByRole("button", { name: "开始测评" }))
+    await waitFor(() => expect(screen.getByText("请填写学号和姓名")).toBeInTheDocument())
+    fireEvent.change(screen.getByPlaceholderText("请输入学号"), { target: { value: "S100" } })
+    fireEvent.change(screen.getByPlaceholderText("请输入姓名"), { target: { value: "李四" } })
+    fireEvent.change(screen.getByPlaceholderText("四级成绩"), { target: { value: "711" } })
+    fireEvent.click(screen.getByRole("button", { name: "开始测评" }))
+    await waitFor(() => expect(screen.getByText("四六级成绩需要是 0-710 的整数")).toBeInTheDocument())
+    fireEvent.change(screen.getByPlaceholderText("四级成绩"), { target: { value: "" } })
+    fireEvent.click(screen.getByRole("button", { name: "开始测评" }))
     await waitFor(() => expect(screen.getByText("alpha")).toBeInTheDocument())
     expect(screen.queryByText("首页")).not.toBeInTheDocument()
     expect(screen.getAllByText("词汇测试").length).toBeGreaterThanOrEqual(1)
@@ -168,11 +191,11 @@ describe("App", () => {
     ])
     expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes("/api/adaptive-test-sessions"))).toBe(false)
 
-    fireEvent.click(navLink("学生记录"))
+    await waitFor(() => expect(screen.getByText("测试记录已保存")).toBeInTheDocument())
+
+    fireEvent.click(navLink("测试记录"))
     await waitFor(() => expect(screen.getByText("S001")).toBeInTheDocument())
-    fireEvent.change(screen.getByPlaceholderText("姓名或代号"), { target: { value: "S100" } })
-    fireEvent.click(screen.getByRole("button", { name: "保存记录" }))
-    await waitFor(() => expect(screen.getByText("学生测试记录已保存")).toBeInTheDocument())
+    expect(screen.getByText("张三")).toBeInTheDocument()
 
     const saveCall = await waitFor(() => {
       const calls = vi.mocked(fetch).mock.calls.filter(([url, init]) =>
@@ -182,8 +205,13 @@ describe("App", () => {
       return calls.at(-1)
     })
     const saveBody = JSON.parse(String((saveCall?.[1] as RequestInit | undefined)?.body ?? "{}"))
+    expect(saveBody.student_code).toBe("S100")
+    expect(saveBody.student_name).toBe("李四")
+    expect(saveBody.cet4_score).toBeNull()
+    expect(saveBody.cet6_score).toBeNull()
     expect(saveBody.estimate).toBe(4200)
     expect(saveBody.responses).toHaveLength(4)
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).endsWith("/api/student-results?page=1&page_size=5"))).toBe(true)
   })
 
   it("uploads a selected CSV file from the batch page", async () => {
@@ -209,19 +237,15 @@ describe("App", () => {
     }))
   })
 
-  it("renders paginated student records and can save the current estimate", async () => {
+  it("renders paginated test records from the database", async () => {
     window.history.pushState({}, "", "/students")
     render(<App />)
 
     await waitFor(() => expect(screen.getByText("S001")).toBeInTheDocument())
+    expect(screen.getByText("张三")).toBeInTheDocument()
+    expect(screen.getByText("从数据库分页查询正式词汇测试保存结果。")).toBeInTheDocument()
     expect(screen.getByRole("navigation", { name: "pagination" })).toBeInTheDocument()
-
-    fireEvent.change(screen.getByPlaceholderText("姓名或代号"), { target: { value: "S100" } })
-    fireEvent.change(screen.getByPlaceholderText("四级成绩"), { target: { value: "520" } })
-    fireEvent.change(screen.getByPlaceholderText("六级成绩"), { target: { value: "480" } })
-    fireEvent.click(screen.getByRole("button", { name: "保存记录" }))
-
-    await waitFor(() => expect(screen.getByText("请先完成一次估算")).toBeInTheDocument())
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).endsWith("/api/student-results?page=1&page_size=5"))).toBe(true)
   })
 
   it("shows report outputs with table previews and correlation values", async () => {

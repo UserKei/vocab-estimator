@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlmodel import Session, select
+from sqlmodel import Session, func, select
 
 from vocab_estimator.models import EstimateResult
 
@@ -11,6 +11,7 @@ from .schemas import StudentResultCreate
 def create_student_result(session: Session, payload: StudentResultCreate) -> StudentResult:
     record = StudentResult(
         student_code=payload.student_code,
+        student_name=payload.student_name,
         cet4_score=payload.cet4_score,
         cet6_score=payload.cet6_score,
         estimate=payload.estimate,
@@ -35,9 +36,15 @@ def create_student_result(session: Session, payload: StudentResultCreate) -> Stu
     return record
 
 
-def list_student_results(session: Session) -> list[StudentResult]:
-    statement = select(StudentResult).order_by(StudentResult.created_at.desc())
-    return list(session.exec(statement).all())
+def list_student_results(session: Session, *, page: int, page_size: int) -> tuple[list[StudentResult], int]:
+    total = session.exec(select(func.count(StudentResult.id))).one()
+    statement = (
+        select(StudentResult)
+        .order_by(StudentResult.created_at.desc(), StudentResult.id.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+    return list(session.exec(statement).all()), int(total)
 
 
 def create_batch_job(
