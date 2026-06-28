@@ -55,6 +55,12 @@
 - [x] 增加 GUI 实验/报告输出查看页
 - [x] API Docker 镜像包含样本数据和报告输出
 - [x] 更新课程报告草稿以说明新假设和限制
+- [x] 新建 `frontend-pages-redesign` 分支重写前端页面结构
+- [x] 前端从 Tabs 改为 React Router 多页面路由
+- [x] 使用 shadcn Sidebar 和 Breadcrumb 搭建应用布局
+- [x] 学生记录和实验输出使用 TanStack Table 分页展示
+- [x] 本地 Vite 前端默认端口对齐为 5010
+- [x] 写入前端多页面重写技术方案文档
 
 ## 备注
 

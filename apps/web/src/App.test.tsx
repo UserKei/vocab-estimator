@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs"
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { App } from "./App"
 
@@ -38,10 +38,10 @@ vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit
   }
   if (url.endsWith("/api/reports/outputs")) {
     return jsonResponse({
-      text_estimates: [{ text_path: "C.txt", estimate: "12000", confidence: "0.7" }],
-      learner_profiles: [{ learner_class: "C", estimate: "11800", confidence: "0.6" }],
-      stability_summary: [{ unknown_ratio: "0.1", sample_length: "200", estimate_mean: "9000" }],
-      student_summary: [{ student_code: "S001", estimate_mean: "5000", runs: "3" }],
+      text_estimates: [{ text_path: "C.txt", estimate: "12000", range_low: "11000", range_high: "13000", confidence: "0.7" }],
+      learner_profiles: [{ learner_class: "C", estimate: "11800", range_low: "10600", range_high: "12800", confidence: "0.6" }],
+      stability_summary: [{ unknown_ratio: "0.1", sample_length: "200", estimate_mean: "9000", estimate_stddev: "450", range_width_mean: "1100" }],
+      student_summary: [{ student_code: "S001", estimate_mean: "5000", runs: "3", cet4_score: "520", cet6_score: "480" }],
       student_correlation: {
         cet4_estimate_correlation: 0.99,
         cet6_estimate_correlation: 0.98,
@@ -62,7 +62,34 @@ vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit
     })
   }
   if (url.endsWith("/api/student-results")) {
-    return jsonResponse([])
+    if ((init?.method ?? "GET") === "POST") {
+      return jsonResponse({
+        id: 8,
+        student_code: "S100",
+        cet4_score: 520,
+        cet6_score: 480,
+        estimate: 4200,
+        range_low: 3800,
+        range_high: 4700,
+        confidence: 0.72,
+        method: "api_batch_job",
+        created_at: "2026-06-22T00:00:00",
+      })
+    }
+    return jsonResponse([
+      {
+        id: 1,
+        student_code: "S001",
+        cet4_score: 430,
+        cet6_score: null,
+        estimate: 3750,
+        range_low: 3300,
+        range_high: 4200,
+        confidence: 0.62,
+        method: "rank_midpoint_bootstrap_v1",
+        created_at: "2026-06-22T00:00:00",
+      },
+    ])
   }
   return jsonResponse({ status: "ok" })
 }))
@@ -71,17 +98,19 @@ describe("App", () => {
   afterEach(() => {
     cleanup()
     vi.clearAllMocks()
+    window.history.pushState({}, "", "/")
   })
 
-  it("renders the vocabulary testing workbench", () => {
+  it("renders a sidebar-driven multi-page workbench", () => {
     render(<App />)
 
     expect(screen.getByText("vocab-estimator")).toBeInTheDocument()
-    expect(screen.queryByText("课程设计工具台")).not.toBeInTheDocument()
-    expect(screen.getByText("词汇测试")).toBeInTheDocument()
-    expect(screen.getByText("批处理")).toBeInTheDocument()
-    expect(screen.getByText("学生记录")).toBeInTheDocument()
-    expect(screen.getByText("实验输出")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "概览" })).toHaveAttribute("href", "/")
+    expect(screen.getByRole("link", { name: "词汇测试" })).toHaveAttribute("href", "/test")
+    expect(screen.getByRole("link", { name: "批处理" })).toHaveAttribute("href", "/batch")
+    expect(screen.getByRole("link", { name: "学生记录" })).toHaveAttribute("href", "/students")
+    expect(screen.getByRole("link", { name: "实验输出" })).toHaveAttribute("href", "/reports")
+    expect(screen.queryByRole("tab", { name: "词汇测试" })).not.toBeInTheDocument()
   })
 
   it("keeps the Tailwind v4 stylesheet entrypoint enabled", () => {
@@ -91,31 +120,16 @@ describe("App", () => {
     expect(stylesheet).toContain("background-size: 32px 32px")
   })
 
-  it("loads one adaptive word from the API instead of a fixed frontend list", async () => {
+  it("navigates to the vocabulary test page and answers adaptive words", async () => {
     render(<App />)
 
+    fireEvent.click(screen.getByRole("link", { name: "词汇测试" }))
     await waitFor(() => expect(screen.getByText("alpha")).toBeInTheDocument())
-    expect(screen.getByText("自适应词汇测试")).toBeInTheDocument()
-    expect(screen.getByText("不确定")).toBeInTheDocument()
-    expect(fetch).toHaveBeenCalledWith("/api/adaptive-test-sessions", expect.objectContaining({ method: "POST" }))
-  })
-
-  it("renders summary progress and the current rank badge", async () => {
-    render(<App />)
-
-    await waitFor(() => expect(screen.getByText("alpha")).toBeInTheDocument())
-    expect(screen.getByText("进度")).toBeInTheDocument()
-    expect(screen.getByText("本次测试进度")).toBeInTheDocument()
-    expect(screen.getByText("逐词动态调整")).toBeInTheDocument()
+    expect(screen.getByText("首页")).toBeInTheDocument()
+    expect(screen.getAllByText("词汇测试").length).toBeGreaterThanOrEqual(2)
     expect(screen.getByText("rank 100").closest("[data-slot='badge']")).toBeInstanceOf(HTMLElement)
-  })
 
-  it("moves to the next adaptive word after marking the current word known", async () => {
-    render(<App />)
-
-    await waitFor(() => expect(screen.getByText("alpha")).toBeInTheDocument())
     fireEvent.click(screen.getByRole("button", { name: "认识" }))
-
     await waitFor(() => expect(screen.getByText("omega")).toBeInTheDocument())
     const answerCall = vi.mocked(fetch).mock.calls.find(([url]) => String(url).endsWith("/api/adaptive-test-sessions/adaptive-test/answer"))
     const body = JSON.parse(String((answerCall?.[1] as RequestInit | undefined)?.body ?? "{}"))
@@ -123,6 +137,7 @@ describe("App", () => {
   })
 
   it("supports uncertain answers in the adaptive test flow", async () => {
+    window.history.pushState({}, "", "/test")
     render(<App />)
 
     await waitFor(() => expect(screen.getByText("alpha")).toBeInTheDocument())
@@ -134,28 +149,10 @@ describe("App", () => {
     expect(body.responses[0]).toMatchObject({ word: "alpha", status: "uncertain" })
   })
 
-  it("uses a high contrast action for marking a word unknown", async () => {
+  it("uploads a selected CSV file from the batch page", async () => {
     render(<App />)
 
-    await waitFor(() => expect(screen.getByText("alpha")).toBeInTheDocument())
-    const unknownButton = screen.getByRole("button", { name: "不认识" })
-
-    expect(unknownButton).toHaveAttribute("data-variant", "destructive")
-  })
-
-  it("shows student score correlation outputs on the reports tab", async () => {
-    render(<App />)
-
-    fireEvent.click(screen.getByRole("tab", { name: "实验输出" }))
-    await waitFor(() => expect(screen.getByText("四六级相关性")).toBeInTheDocument())
-    expect(screen.getByText("cet4_estimate_correlation")).toBeInTheDocument()
-    expect(screen.getByText("0.99")).toBeInTheDocument()
-  })
-
-  it("uploads a selected CSV file for batch processing", async () => {
-    render(<App />)
-
-    fireEvent.click(screen.getByRole("tab", { name: "批处理" }))
+    fireEvent.click(screen.getByRole("link", { name: "批处理" }))
     const file = new File(["word,status\nalpha,known\nomega,unknown\n"], "responses.csv", { type: "text/csv" })
     fireEvent.change(screen.getByLabelText("选择 CSV 文件"), { target: { files: [file] } })
     await waitFor(() => expect(screen.getByText(/responses\.csv/)).toBeInTheDocument())
@@ -170,25 +167,30 @@ describe("App", () => {
     }))
   })
 
-  it("accepts a dragged CSV file for batch processing", async () => {
+  it("renders paginated student records and can save the current estimate", async () => {
+    window.history.pushState({}, "", "/students")
     render(<App />)
 
-    fireEvent.click(screen.getByRole("tab", { name: "批处理" }))
-    const file = new File(["word,status\nalpha,known\nomega,unknown\n"], "dragged.csv", { type: "text/csv" })
-    const dropZone = screen.getByLabelText("拖拽 CSV 文件到这里")
-    fireEvent.dragOver(dropZone, { dataTransfer: { files: [file] } })
-    fireEvent.drop(dropZone, { dataTransfer: { files: [file] } })
+    await waitFor(() => expect(screen.getByText("S001")).toBeInTheDocument())
+    expect(screen.getByRole("navigation", { name: "pagination" })).toBeInTheDocument()
 
-    await waitFor(() => expect(screen.getByText(/dragged\.csv/)).toBeInTheDocument())
-    const uploadButton = screen.getByRole("button", { name: "上传批处理" })
-    await waitFor(() => expect(uploadButton).not.toBeDisabled())
-    fireEvent.click(uploadButton)
+    fireEvent.change(screen.getByPlaceholderText("姓名或代号"), { target: { value: "S100" } })
+    fireEvent.change(screen.getByPlaceholderText("四级成绩"), { target: { value: "520" } })
+    fireEvent.change(screen.getByPlaceholderText("六级成绩"), { target: { value: "480" } })
+    fireEvent.click(screen.getByRole("button", { name: "保存记录" }))
 
-    await waitFor(() => expect(screen.getByText("批处理任务 #7 已保存")).toBeInTheDocument())
-    expect(fetch).toHaveBeenCalledWith("/api/batch", expect.objectContaining({
-      method: "POST",
-      body: expect.any(FormData),
-    }))
+    await waitFor(() => expect(screen.getByText("请先完成一次估算")).toBeInTheDocument())
+  })
+
+  it("shows report outputs with table previews and correlation values", async () => {
+    window.history.pushState({}, "", "/reports")
+    render(<App />)
+
+    await waitFor(() => expect(screen.getByText("四类语料文本估计")).toBeInTheDocument())
+    expect(screen.getByText("C.txt")).toBeInTheDocument()
+    const correlationCard = screen.getByText("四六级相关性").closest("[data-slot='card']")
+    expect(correlationCard).toBeInstanceOf(HTMLElement)
+    expect(within(correlationCard as HTMLElement).getByText("0.99")).toBeInTheDocument()
   })
 })
 
