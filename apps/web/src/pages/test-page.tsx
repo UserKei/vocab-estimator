@@ -1,4 +1,4 @@
-import { CheckCircle2, CircleHelp, Database, RotateCcw, XCircle } from "lucide-react"
+import { CheckCircle2, Database, RotateCcw, XCircle } from "lucide-react"
 import { ResultCard } from "@/components/result-card"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -6,12 +6,10 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Progress } from "@/components/ui/progress"
-import { statusLabel, useAdaptiveTest } from "@/hooks/use-adaptive-test"
+import { responseLabel, responseVariant, useTwoStageTest } from "@/hooks/use-two-stage-test"
 
 export function TestPage() {
   const {
-    adaptiveResponses,
-    adaptiveSession,
     answerCurrentWord,
     answeredCount,
     currentWord,
@@ -19,9 +17,12 @@ export function TestPage() {
     isBusy,
     message,
     progress,
+    responses,
+    session,
+    stage,
     startNewTest,
     totalWords,
-  } = useAdaptiveTest()
+  } = useTwoStageTest()
 
   return (
     <>
@@ -36,13 +37,13 @@ export function TestPage() {
           <CardHeader className="border-b bg-muted/30">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="flex flex-col gap-1">
-                <CardTitle>一词一屏词汇测试</CardTitle>
+                <CardTitle>150 词两阶段词汇测试</CardTitle>
                 <CardDescription>
-                  {adaptiveSession ? `Session ${adaptiveSession.session_id}` : "等待生成测试题"}
+                  {session ? `Session ${session.session_id}` : estimate ? "测试完成" : "等待生成测试题"}
                 </CardDescription>
               </div>
-              <Badge variant={adaptiveSession?.completed ? "secondary" : "outline"}>
-                {adaptiveSession?.completed ? "已完成" : "动态调整难度"}
+              <Badge variant={estimate ? "secondary" : "outline"}>
+                {estimate ? "已完成" : `阶段 ${stage}`}
               </Badge>
             </div>
           </CardHeader>
@@ -50,8 +51,8 @@ export function TestPage() {
             <div className="flex flex-col gap-2">
               <Progress value={progress} />
               <div className="flex flex-col gap-1 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-                <span>{`已回答 ${answeredCount} / ${totalWords} 个词`}</span>
-                <span>{`下一题目标 rank ${adaptiveSession?.target_rank ?? "--"}`}</span>
+                <span>{`${answeredCount}/${totalWords}`}</span>
+                <span>{stage === 1 ? "第一阶段粗定位：40 词" : "第二阶段窄范围采样：110 词"}</span>
               </div>
             </div>
 
@@ -65,18 +66,14 @@ export function TestPage() {
                     <span className="font-mono text-5xl font-semibold leading-none sm:text-7xl">
                       {currentWord.word}
                     </span>
-                    <span className="text-sm text-muted-foreground">选择后系统会根据结果实时决定下一题 rank。</span>
+                    <span className="text-sm text-muted-foreground">拿不准的词按“不认识”处理，保证 150 个答案全部参与估算。</span>
                   </div>
-                  <div className="grid w-full max-w-2xl gap-3 sm:grid-cols-3">
-                    <Button size="lg" onClick={() => answerCurrentWord("known")} disabled={isBusy}>
+                  <div className="grid w-full max-w-xl gap-3 sm:grid-cols-2">
+                    <Button size="lg" onClick={() => answerCurrentWord(true)} disabled={isBusy}>
                       <CheckCircle2 data-icon="inline-start" />
                       认识
                     </Button>
-                    <Button size="lg" variant="secondary" onClick={() => answerCurrentWord("uncertain")} disabled={isBusy}>
-                      <CircleHelp data-icon="inline-start" />
-                      不确定
-                    </Button>
-                    <Button size="lg" variant="destructive" onClick={() => answerCurrentWord("unknown")} disabled={isBusy}>
+                    <Button size="lg" variant="destructive" onClick={() => answerCurrentWord(false)} disabled={isBusy}>
                       <XCircle data-icon="inline-start" />
                       不认识
                     </Button>
@@ -89,20 +86,22 @@ export function TestPage() {
                       <Database />
                     </EmptyMedia>
                     <EmptyTitle>{estimate ? "测试完成" : "等待测试题"}</EmptyTitle>
-                    <EmptyDescription>{estimate ? "右侧已经生成估算结果。" : "点击新测试重新生成自适应词汇测试。"}</EmptyDescription>
+                    <EmptyDescription>
+                      {estimate ? "右侧已经生成估算结果。" : "点击新测试重新生成 150 词两阶段测试。"}
+                    </EmptyDescription>
                   </EmptyHeader>
                 </Empty>
               )}
             </div>
 
-            {adaptiveResponses.length ? (
+            {responses.length ? (
               <div className="flex flex-wrap gap-2">
-                {adaptiveResponses.slice(-8).map((response, index) => (
+                {responses.slice(-8).map((response, index) => (
                   <Badge
                     key={`${response.word}-${index}`}
-                    variant={response.status === "known" ? "default" : response.status === "unknown" ? "destructive" : "secondary"}
+                    variant={responseVariant(response)}
                   >
-                    {response.word} · {statusLabel(response.status)}
+                    {response.word} · {responseLabel(response)}
                   </Badge>
                 ))}
               </div>
@@ -121,7 +120,7 @@ export function TestPage() {
           answeredCount={answeredCount}
           totalWords={totalWords}
           progress={progress}
-          statusLabel={adaptiveSession?.completed ? "已完成" : "进行中"}
+          statusLabel={estimate ? "已完成" : `阶段 ${stage}`}
         />
       </div>
     </>

@@ -76,7 +76,8 @@ class AdaptiveSessionOut(BaseModel):
 class NextStageRequest(BaseModel):
     responses: list[EstimateResponseInput] = Field(min_length=1)
     seed: int | None = None
-    stage2_size: int = Field(default=80, ge=4, le=240)
+    stage2_size: int = Field(default=110, ge=4, le=240)
+    excluded_words: list[str] = Field(default_factory=list)
 
 
 class FinalEstimateRequest(BaseModel):

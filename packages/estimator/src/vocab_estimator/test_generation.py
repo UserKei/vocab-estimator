@@ -5,6 +5,7 @@ from collections.abc import Iterable
 
 from .estimation import estimate_vocabulary
 from .models import TestWord, VocabularyResponse, WordRank
+from .text import normalize_word
 
 
 def generate_first_stage_words(
@@ -23,13 +24,19 @@ def generate_second_stage_words(
     *,
     count: int = 80,
     seed: int | None = None,
+    excluded_words: Iterable[str] = (),
 ) -> list[TestWord]:
     observed = list(responses)
     result = estimate_vocabulary(word_ranks, observed, bootstrap_iterations=0)
     answered_words = {
-        (response.word if isinstance(response, VocabularyResponse) else response[0]).lower()
+        normalize_word(response.word if isinstance(response, VocabularyResponse) else response[0])
         for response in observed
     }
+    answered_words.update(
+        normalized
+        for word in excluded_words
+        if (normalized := normalize_word(word))
+    )
     ranks = [
         rank
         for rank in _sorted_ranks(word_ranks)

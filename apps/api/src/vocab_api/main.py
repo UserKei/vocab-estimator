@@ -90,6 +90,7 @@ def create_app() -> FastAPI:
             [(item.word, item.known) for item in payload.responses],
             seed,
             payload.stage2_size,
+            payload.excluded_words,
         )
         return TestSessionOut(
             session_id=session_id,

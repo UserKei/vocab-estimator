@@ -101,10 +101,15 @@ export function createTestSession(seed?: number) {
   })
 }
 
-export function requestNextStage(sessionId: string, responses: EstimateResponseInput[], seed?: number) {
+export function requestNextStage(
+  sessionId: string,
+  responses: EstimateResponseInput[],
+  seed?: number,
+  excludedWords: string[] = [],
+) {
   return requestJson<TestSession>(`/api/test-sessions/${sessionId}/next`, {
     method: "POST",
-    body: JSON.stringify({ responses, seed, stage2_size: 80 }),
+    body: JSON.stringify({ responses, seed, stage2_size: 110, excluded_words: excludedWords }),
   })
 }
 

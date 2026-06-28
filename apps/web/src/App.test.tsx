@@ -5,35 +5,36 @@ import { App } from "./App"
 
 vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
   const url = String(input)
-  if (url.endsWith("/api/adaptive-test-sessions")) {
+  if (url.endsWith("/api/test-sessions")) {
     return jsonResponse({
-      session_id: "adaptive-test",
-      current_word: { word: "alpha", rank: 100, stage: 1 },
-      completed: false,
-      estimate: null,
-      progress: 0,
-      answered_count: 0,
-      max_items: 24,
-      target_rank: 100,
+      session_id: "session-150",
+      stage: 1,
+      words: [
+        { word: "alpha", rank: 100, stage: 1 },
+        { word: "beta", rank: 900, stage: 1 },
+      ],
     })
   }
-  if (url.endsWith("/api/adaptive-test-sessions/adaptive-test/answer")) {
-    const body = JSON.parse(String(init?.body ?? "{}")) as { responses?: Array<{ status: string }> }
-    const lastStatus = body.responses?.at(-1)?.status ?? "known"
-    const nextWord = lastStatus === "unknown"
-      ? { word: "easy", rank: 50, stage: 2 }
-      : lastStatus === "uncertain"
-        ? { word: "middle", rank: 600, stage: 2 }
-        : { word: "omega", rank: 1200, stage: 2 }
+  if (url.endsWith("/api/test-sessions/session-150/next")) {
     return jsonResponse({
-      session_id: "adaptive-test",
-      current_word: nextWord,
-      completed: false,
-      estimate: null,
-      progress: 4.2,
-      answered_count: 1,
-      max_items: 24,
-      target_rank: nextWord.rank,
+      session_id: "session-150",
+      stage: 2,
+      words: [
+        { word: "gamma", rank: 1500, stage: 2 },
+        { word: "delta", rank: 2400, stage: 2 },
+      ],
+    })
+  }
+  if (url.endsWith("/api/test-sessions/session-150/estimate")) {
+    const body = JSON.parse(String(init?.body ?? "{}")) as { responses?: Array<{ word: string; known: boolean }> }
+    return jsonResponse({
+      estimate: 4200,
+      range_low: 3800,
+      range_high: 4700,
+      confidence: 0.72,
+      method: "rank_midpoint_bootstrap_v1",
+      sample_size: body.responses?.length ?? 0,
+      ignored_words: [],
     })
   }
   if (url.endsWith("/api/reports/outputs")) {
@@ -120,33 +121,69 @@ describe("App", () => {
     expect(stylesheet).toContain("background-size: 32px 32px")
   })
 
-  it("navigates to the vocabulary test page and answers adaptive words", async () => {
+  it("runs a 150-word two-stage vocabulary test with two answer states", async () => {
     render(<App />)
 
     fireEvent.click(navLink("词汇测试"))
     await waitFor(() => expect(screen.getByText("alpha")).toBeInTheDocument())
     expect(screen.queryByText("首页")).not.toBeInTheDocument()
     expect(screen.getAllByText("词汇测试").length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText("阶段 1").length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText("0/150").length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText("rank 100").closest("[data-slot='badge']")).toBeInstanceOf(HTMLElement)
+    expect(screen.getByRole("button", { name: "认识" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "不认识" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "不确定" })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "认识" }))
-    await waitFor(() => expect(screen.getByText("omega")).toBeInTheDocument())
-    const answerCall = vi.mocked(fetch).mock.calls.find(([url]) => String(url).endsWith("/api/adaptive-test-sessions/adaptive-test/answer"))
-    const body = JSON.parse(String((answerCall?.[1] as RequestInit | undefined)?.body ?? "{}"))
-    expect(body.responses[0]).toMatchObject({ word: "alpha", status: "known" })
-  })
+    await waitFor(() => expect(screen.getByText("beta")).toBeInTheDocument())
+    fireEvent.click(screen.getByRole("button", { name: "不认识" }))
+    await waitFor(() => expect(screen.getByText("gamma")).toBeInTheDocument())
 
-  it("supports uncertain answers in the adaptive test flow", async () => {
-    window.history.pushState({}, "", "/test")
-    render(<App />)
+    const firstStageCall = vi.mocked(fetch).mock.calls.find(([url]) => String(url).endsWith("/api/test-sessions"))
+    const firstStageBody = JSON.parse(String((firstStageCall?.[1] as RequestInit | undefined)?.body ?? "{}"))
+    expect(firstStageBody.stage1_size).toBe(40)
 
-    await waitFor(() => expect(screen.getByText("alpha")).toBeInTheDocument())
-    fireEvent.click(screen.getByRole("button", { name: "不确定" }))
+    const nextStageCall = vi.mocked(fetch).mock.calls.find(([url]) => String(url).endsWith("/api/test-sessions/session-150/next"))
+    const nextStageBody = JSON.parse(String((nextStageCall?.[1] as RequestInit | undefined)?.body ?? "{}"))
+    expect(nextStageBody.stage2_size).toBe(110)
+    expect(nextStageBody.excluded_words).toEqual(["alpha", "beta"])
+    expect(nextStageBody.responses).toEqual([
+      { word: "alpha", known: true },
+      { word: "beta", known: false },
+    ])
 
-    await waitFor(() => expect(screen.getByText("middle")).toBeInTheDocument())
-    const answerCall = vi.mocked(fetch).mock.calls.find(([url]) => String(url).endsWith("/api/adaptive-test-sessions/adaptive-test/answer"))
-    const body = JSON.parse(String((answerCall?.[1] as RequestInit | undefined)?.body ?? "{}"))
-    expect(body.responses[0]).toMatchObject({ word: "alpha", status: "uncertain" })
+    fireEvent.click(screen.getByRole("button", { name: "认识" }))
+    await waitFor(() => expect(screen.getByText("delta")).toBeInTheDocument())
+    fireEvent.click(screen.getByRole("button", { name: "不认识" }))
+    await waitFor(() => expect(screen.getByText("4200")).toBeInTheDocument())
+
+    const estimateCall = vi.mocked(fetch).mock.calls.find(([url]) => String(url).endsWith("/api/test-sessions/session-150/estimate"))
+    const estimateBody = JSON.parse(String((estimateCall?.[1] as RequestInit | undefined)?.body ?? "{}"))
+    expect(estimateBody.responses).toEqual([
+      { word: "alpha", known: true },
+      { word: "beta", known: false },
+      { word: "gamma", known: true },
+      { word: "delta", known: false },
+    ])
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes("/api/adaptive-test-sessions"))).toBe(false)
+
+    fireEvent.click(navLink("学生记录"))
+    await waitFor(() => expect(screen.getByText("S001")).toBeInTheDocument())
+    fireEvent.change(screen.getByPlaceholderText("姓名或代号"), { target: { value: "S100" } })
+    fireEvent.click(screen.getByRole("button", { name: "保存记录" }))
+    await waitFor(() => expect(screen.getByText("学生测试记录已保存")).toBeInTheDocument())
+
+    const saveCall = await waitFor(() => {
+      const calls = vi.mocked(fetch).mock.calls.filter(([url, init]) =>
+        String(url).endsWith("/api/student-results") && (init as RequestInit | undefined)?.method === "POST"
+      )
+      expect(calls.length).toBeGreaterThan(0)
+      return calls.at(-1)
+    })
+    const saveBody = JSON.parse(String((saveCall?.[1] as RequestInit | undefined)?.body ?? "{}"))
+    expect(saveBody.estimate).toBe(4200)
+    expect(saveBody.responses).toHaveLength(4)
   })
 
   it("uploads a selected CSV file from the batch page", async () => {
