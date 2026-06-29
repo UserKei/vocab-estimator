@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs"
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { App } from "./App"
 
@@ -32,21 +32,16 @@ vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit
       range_low: 3800,
       range_high: 4700,
       confidence: 0.72,
-      method: "rank_midpoint_bootstrap_v1",
+      method: "rank_midpoint_bootstrap_education_v1",
       sample_size: body.responses?.length ?? 0,
       ignored_words: [],
     })
   }
   if (url.endsWith("/api/reports/outputs")) {
     return jsonResponse({
-      text_estimates: [{ text_path: "C.txt", estimate: "12000", range_low: "11000", range_high: "13000", confidence: "0.7" }],
+      text_estimates: [{ text_path: "C.txt", estimate: "12000", range_low: "11000", range_high: "13000", confidence: "0.7", matched_words: "360", ranked_words: "320" }],
       learner_profiles: [{ learner_class: "C", estimate: "11800", range_low: "10600", range_high: "12800", confidence: "0.6" }],
       stability_summary: [{ unknown_ratio: "0.1", sample_length: "200", estimate_mean: "9000", estimate_stddev: "450", range_width_mean: "1100" }],
-      student_summary: [{ student_code: "S001", estimate_mean: "5000", runs: "3", cet4_score: "520", cet6_score: "480" }],
-      student_correlation: {
-        cet4_estimate_correlation: 0.99,
-        cet6_estimate_correlation: 0.98,
-      },
     })
   }
   if (url.endsWith("/api/batch")) {
@@ -91,7 +86,7 @@ vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit
           range_low: 3300,
           range_high: 4200,
           confidence: 0.62,
-          method: "rank_midpoint_bootstrap_v1",
+          method: "rank_midpoint_bootstrap_education_v1",
           created_at: "2026-06-22T00:00:00",
         },
       ],
@@ -121,6 +116,7 @@ describe("App", () => {
     expect(screen.getByRole("link", { name: "测试记录" })).toHaveAttribute("href", "/students")
     expect(screen.getByRole("link", { name: "实验输出" })).toHaveAttribute("href", "/reports")
     expect(screen.queryByRole("tab", { name: "词汇测试" })).not.toBeInTheDocument()
+    expect(screen.getByTestId("test-form-panel")).toHaveClass("mx-auto", "w-full", "max-w-5xl")
   })
 
   it("keeps the Tailwind v4 stylesheet entrypoint enabled", () => {
@@ -180,6 +176,7 @@ describe("App", () => {
     await waitFor(() => expect(screen.getByText("delta")).toBeInTheDocument())
     fireEvent.click(screen.getByRole("button", { name: "不认识" }))
     await waitFor(() => expect(screen.getByText("4200")).toBeInTheDocument())
+    expect(screen.getByText("结果基于 ECDICT 教育阶段词库，包含词汇量、范围和置信度。")).toBeInTheDocument()
 
     const estimateCall = vi.mocked(fetch).mock.calls.find(([url]) => String(url).endsWith("/api/test-sessions/session-150/estimate"))
     const estimateBody = JSON.parse(String((estimateCall?.[1] as RequestInit | undefined)?.body ?? "{}"))
@@ -220,6 +217,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("link", { name: "批处理" }))
     expect(screen.queryByText("估算结果")).not.toBeInTheDocument()
     expect(screen.queryByText("等待结果")).not.toBeInTheDocument()
+    expect(screen.getByTestId("batch-workspace")).toHaveClass("mx-auto", "w-full", "max-w-3xl")
     const file = new File(["word,status\nalpha,known\nomega,unknown\n"], "responses.csv", { type: "text/csv" })
     fireEvent.change(screen.getByLabelText("选择 CSV 文件"), { target: { files: [file] } })
     await waitFor(() => expect(screen.getByText(/responses\.csv/)).toBeInTheDocument())
@@ -248,15 +246,23 @@ describe("App", () => {
     expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).endsWith("/api/student-results?page=1&page_size=5"))).toBe(true)
   })
 
-  it("shows report outputs with table previews and correlation values", async () => {
+  it("shows report outputs without demo student sample sections", async () => {
     window.history.pushState({}, "", "/reports")
     render(<App />)
 
     await waitFor(() => expect(screen.getByText("四类语料文本估计")).toBeInTheDocument())
+    expect(screen.getByTestId("report-sections")).toHaveClass("grid-cols-1")
+    expect(screen.getByTestId("report-sections")).not.toHaveClass("xl:grid-cols-2")
     expect(screen.getByText("C.txt")).toBeInTheDocument()
-    const correlationCard = screen.getByText("四六级相关性").closest("[data-slot='card']")
-    expect(correlationCard).toBeInstanceOf(HTMLElement)
-    expect(within(correlationCard as HTMLElement).getByText("0.99")).toBeInTheDocument()
+    expect(screen.getByText("四类学员画像估计")).toBeInTheDocument()
+    expect(screen.getByText("稳定性实验摘要")).toBeInTheDocument()
+    expect(screen.getByText("文本覆盖置信度")).toBeInTheDocument()
+    expect(screen.getByText("识别词数")).toBeInTheDocument()
+    expect(screen.getByText("可估计词数")).toBeInTheDocument()
+    expect(screen.getByText("平均置信度")).toBeInTheDocument()
+    expect(screen.queryByText("confidence")).not.toBeInTheDocument()
+    expect(screen.queryByText("学生测试样例摘要")).not.toBeInTheDocument()
+    expect(screen.queryByText("四六级相关性")).not.toBeInTheDocument()
   })
 })
 

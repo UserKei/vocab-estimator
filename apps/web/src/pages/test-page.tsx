@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react"
 import { CheckCircle2, Database, RotateCcw, XCircle } from "lucide-react"
 import { saveStudentResult, type EstimateResult, type EstimateResponseInput } from "@/api"
+import { PageHeader } from "@/components/page-header"
 import { ResultCard } from "@/components/result-card"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -122,13 +123,18 @@ export function TestPage() {
   if (!participant) {
     return (
       <>
+        <PageHeader
+          title="词汇测试"
+          description="先填写学号、姓名和可选四/六级成绩，再完成 150 词两阶段测评；测试完成后自动保存记录。"
+          badge="ECDICT 教育阶段词库"
+        />
         {statusMessage ? (
           <Alert>
             <AlertTitle>状态</AlertTitle>
             <AlertDescription>{statusMessage}</AlertDescription>
           </Alert>
         ) : null}
-        <Card className="max-w-5xl">
+        <Card data-testid="test-form-panel" className="mx-auto w-full max-w-5xl">
           <CardHeader>
             <CardTitle>测评信息</CardTitle>
             <CardDescription>填写学号和姓名后开始 150 词两阶段词汇测试。</CardDescription>
@@ -192,6 +198,11 @@ export function TestPage() {
 
   return (
     <>
+      <PageHeader
+        title="词汇测试"
+        description="逐个判断单词是否认识。第一阶段粗定位，第二阶段在估计区间内采样，最终输出词汇量范围和置信度。"
+        badge={`${answeredCount}/${totalWords}`}
+      />
       {statusMessage ? (
         <Alert>
           <AlertTitle>状态</AlertTitle>

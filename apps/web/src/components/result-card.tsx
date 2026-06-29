@@ -26,7 +26,7 @@ export function ResultCard({
     <Card>
       <CardHeader>
         <CardTitle>估算结果</CardTitle>
-        <CardDescription>结果包含词汇量、范围和置信度。</CardDescription>
+        <CardDescription>结果基于 ECDICT 教育阶段词库，包含词汇量、范围和置信度。</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {estimate ? (

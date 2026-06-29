@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
 import { listStudentResults, type StudentResultsPage } from "@/api"
+import { PageHeader } from "@/components/page-header"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -59,6 +60,11 @@ export function StudentsPage() {
 
   return (
     <>
+      <PageHeader
+        title="测试记录"
+        description="查看同学完成 150 词测评后自动保存到数据库的真实记录，支持后端分页查询。"
+        badge="数据库记录"
+      />
       {message ? (
         <Alert>
           <AlertTitle>状态</AlertTitle>

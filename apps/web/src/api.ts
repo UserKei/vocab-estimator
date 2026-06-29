@@ -81,8 +81,6 @@ export type ReportOutputs = {
   text_estimates: Record<string, string>[]
   learner_profiles: Record<string, string>[]
   stability_summary: Record<string, string>[]
-  student_summary: Record<string, string>[]
-  student_correlation: Record<string, string | number | null>
 }
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {

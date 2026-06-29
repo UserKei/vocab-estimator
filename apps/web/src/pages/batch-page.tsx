@@ -1,6 +1,7 @@
 import { useState, type DragEvent } from "react"
 import { FileUp, Upload } from "lucide-react"
 import { uploadBatchCsv, type EstimateResult } from "@/api"
+import { PageHeader } from "@/components/page-header"
 import { ResultCard } from "@/components/result-card"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -71,13 +72,24 @@ export function BatchPage() {
 
   return (
     <>
+      <PageHeader
+        title="CSV 批处理"
+        description="上传 word,status 格式文件，复现原始需求中的后台批量估算流程；结果会保存为批处理任务记录。"
+        badge="后台验证入口"
+      />
       {message ? (
         <Alert>
           <AlertTitle>状态</AlertTitle>
           <AlertDescription>{message}</AlertDescription>
         </Alert>
       ) : null}
-      <div className={cn("grid gap-5", estimate ? "lg:grid-cols-[1fr_0.85fr]" : "max-w-3xl")}>
+      <div
+        data-testid="batch-workspace"
+        className={cn(
+          "mx-auto grid w-full gap-5",
+          estimate ? "max-w-6xl lg:grid-cols-[1fr_0.85fr]" : "max-w-3xl",
+        )}
+      >
         <Card>
           <CardHeader>
             <CardTitle>CSV 批处理估算</CardTitle>
