@@ -17,6 +17,7 @@
 - [x] 初始化 React + Vite + shadcn/ui 前端
 - [x] 使用 shadcn CLI 覆盖安装前端 UI 组件
 - [x] 设计并生成 `data/wordlists/word_rank.csv`
+- [x] 使用 ECDICT 生成国内教育阶段词库
 - [x] 实现词汇量估算核心算法
 - [x] 实现 bootstrap 范围和置信度
 - [x] 实现 CSV 后台批处理
@@ -50,12 +51,12 @@
 - [x] 前端批处理页改为调用 `/api/batch`
 - [x] 前端批处理页改为真实 CSV 文件上传
 - [x] 前端批处理页支持拖拽上传 CSV 文件
-- [x] 扩展 `word_rank.csv` 到 30000 词
-- [x] 增加独立 `evaluation_wordlist.csv`
+- [x] 更新 `word_rank.csv` 为 14772 词 ECDICT 教育阶段词库
+- [x] 更新 `evaluation_wordlist.csv` 为 ECDICT 教育阶段验证词表
+- [x] 新增 `matching_wordlist.csv` 为 ECDICT 全量文本匹配词库
 - [x] 修正 900 次稳定性实验，保留 bootstrap 范围和摘要标准差
 - [x] 增加 C/F/P/K learner profile 估计输出
-- [x] 增加学生多次测试匿名样例输出
-- [x] 增加学生四六级成绩与估计词汇量相关性输出
+- [x] 移除匿名学生演示数据和相关性假输出
 - [x] 增加 GUI 实验/报告输出查看页
 - [x] API Docker 镜像包含样本数据和报告输出
 - [x] 更新课程报告草稿以说明新假设和限制
@@ -70,6 +71,9 @@
 - [x] 前端词汇测试改为 150 词两阶段二态流程
 - [x] 精简批处理页估算结果空态，避免与 CSV 上传区重复
 - [x] 修复词汇测试高频答题时进度条动画滞后的问题
+- [x] 报告页三张表格改为单独行展示
+- [x] 词汇测试页和 CSV 批处理页主卡片居中
+- [x] 补充项目业务流程、结构设计和文件职责技术文档
 
 ## 备注
 
@@ -87,13 +91,19 @@
 重新生成词表：
 
 ```bash
-PYTHONPATH=packages/estimator/src:packages/experiments/src .venv/bin/python -m vocab_experiments.word_rank --source ../ref/google-10000-english/google-10000-english.txt --supplement ../ref/english-words/words_alpha.txt --output data/wordlists/word_rank.csv --source-name google_10000 --limit 30000
+.venv/bin/python -m vocab_experiments.education_word_rank --ecdict ../ref/ECDICT/ecdict.csv --output data/wordlists/word_rank.csv
 ```
 
-重新生成独立验证词表：
+重新生成验证词表：
 
 ```bash
-PYTHONPATH=packages/estimator/src:packages/experiments/src .venv/bin/python -m vocab_experiments.word_rank --source ../ref/google-10000-english/20k.txt --output data/wordlists/evaluation_wordlist.csv --source-name google_20k_evaluation --limit 20000
+.venv/bin/python -m vocab_experiments.education_word_rank --ecdict ../ref/ECDICT/ecdict.csv --output data/wordlists/evaluation_wordlist.csv
+```
+
+重新生成文本匹配词库：
+
+```bash
+.venv/bin/python -m vocab_experiments.education_word_rank --ecdict ../ref/ECDICT/ecdict.csv --output data/wordlists/matching_wordlist.csv --matching-only
 ```
 
 批处理估算：
@@ -117,19 +127,13 @@ PYTHONPATH=packages/estimator/src:packages/experiments/src .venv/bin/python -m v
 估计文本语料：
 
 ```bash
-PYTHONPATH=packages/estimator/src:packages/experiments/src python3 -m vocab_experiments.text_estimate --word-rank data/wordlists/word_rank.csv --output reports/outputs/text_estimates.csv data/samples/C.txt data/samples/F.txt data/samples/P.txt data/samples/K.txt
+PYTHONPATH=packages/estimator/src:packages/experiments/src python3 -m vocab_experiments.text_estimate --word-rank data/wordlists/word_rank.csv --matching-wordlist data/wordlists/matching_wordlist.csv --output reports/outputs/text_estimates.csv data/samples/C.txt data/samples/F.txt data/samples/P.txt data/samples/K.txt
 ```
 
 估计四类学员画像：
 
 ```bash
 PYTHONPATH=packages/estimator/src:packages/experiments/src .venv/bin/python -m vocab_experiments.learner_profile --word-rank data/wordlists/word_rank.csv --output reports/outputs/learner_profiles.csv data/samples/C.txt data/samples/F.txt data/samples/P.txt data/samples/K.txt
-```
-
-生成学生匿名样例：
-
-```bash
-PYTHONPATH=packages/estimator/src:packages/experiments/src .venv/bin/python -m vocab_experiments.student_samples --raw reports/outputs/student_samples.csv --summary reports/outputs/student_summary.csv --correlation reports/outputs/student_correlation.json
 ```
 
 课程报告草稿：
@@ -205,7 +209,7 @@ API 触发文本语料估计：
 ```bash
 curl -X POST http://127.0.0.1:8000/api/experiments/text-estimate \
   -H "Content-Type: application/json" \
-  -d '{"text_paths":["data/samples/C.txt","data/samples/F.txt","data/samples/P.txt","data/samples/K.txt"],"output_path":"reports/outputs/text_estimates.csv"}'
+  -d '{"text_paths":["data/samples/C.txt","data/samples/F.txt","data/samples/P.txt","data/samples/K.txt"],"output_path":"reports/outputs/text_estimates.csv","matching_wordlist_path":"data/wordlists/matching_wordlist.csv"}'
 ```
 
 运行前端测试：
