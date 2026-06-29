@@ -110,6 +110,7 @@ def _write_results(output_csv: str | Path, results: list[LearnerProfileResult]) 
                 "method",
                 "ignored_words",
             ],
+            lineterminator="\n",
         )
         writer.writeheader()
         for result in results:

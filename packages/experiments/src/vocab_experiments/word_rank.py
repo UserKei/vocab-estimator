@@ -23,7 +23,7 @@ def build_word_rank(
     if supplement_path is not None and (limit is None or len(words) < limit):
         _collect_words(Path(supplement_path), "supplement", seen, words, limit)
     with output.open("w", encoding="utf-8", newline="") as target:
-        writer = csv.writer(target)
+        writer = csv.writer(target, lineterminator="\n")
         writer.writerow(["word", "rank", "frequency", "source"])
         for rank, (word, source) in enumerate(words, start=1):
             writer.writerow([word, rank, _zipf_proxy(rank), source])

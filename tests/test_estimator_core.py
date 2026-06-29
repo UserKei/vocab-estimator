@@ -102,7 +102,7 @@ class EstimatorCoreTests(unittest.TestCase):
         self.assertEqual(result.range_high, 300)
         self.assertEqual(result.sample_size, 6)
         self.assertEqual(result.ignored_words, ["missing"])
-        self.assertEqual(result.method, "rank_midpoint_bootstrap_v1")
+        self.assertEqual(result.method, "rank_midpoint_bootstrap_education_v1")
 
     def test_bootstrap_returns_deterministic_range_and_confidence(self) -> None:
         ranks = load_word_ranks(

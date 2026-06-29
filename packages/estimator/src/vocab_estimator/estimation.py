@@ -6,7 +6,7 @@ from collections.abc import Iterable, Sequence
 from .models import EstimateResult, VocabularyResponse, WordRank
 from .text import normalize_word
 
-METHOD = "rank_midpoint_bootstrap_v1"
+METHOD = "rank_midpoint_bootstrap_education_v1"
 
 
 def estimate_vocabulary(

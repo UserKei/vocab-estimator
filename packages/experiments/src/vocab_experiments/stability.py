@@ -49,6 +49,7 @@ def run_stability_experiment(
                 "sample_size",
                 "evaluation_source",
             ],
+            lineterminator="\n",
         )
         writer.writeheader()
         for unknown_ratio in unknown_ratios:

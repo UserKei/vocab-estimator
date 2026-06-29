@@ -99,6 +99,7 @@ def _write_summary_csv(output_csv: str | Path, rows: list[StabilitySummaryRow]) 
                 "range_width_mean",
                 "confidence_mean",
             ],
+            lineterminator="\n",
         )
         writer.writeheader()
         for row in rows:

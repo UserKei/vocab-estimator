@@ -37,6 +37,7 @@ def _write_result(output_csv: str | Path, result: EstimateResult) -> None:
                 "sample_size",
                 "ignored_words",
             ],
+            lineterminator="\n",
         )
         writer.writeheader()
         writer.writerow(
@@ -75,4 +76,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
