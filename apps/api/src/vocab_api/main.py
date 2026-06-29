@@ -4,7 +4,6 @@ from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 from pathlib import Path
 import csv
-import json
 
 from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile
 from sqlmodel import Session
@@ -202,7 +201,12 @@ def create_app() -> FastAPI:
 
     @app.post("/api/experiments/text-estimate", response_model=TextEstimateOut)
     def run_text_estimate_route(payload: TextEstimateRequest) -> TextEstimateOut:
-        results = estimate_text_files(payload.text_paths, get_settings_word_rank_path(), payload.output_path)
+        results = estimate_text_files(
+            payload.text_paths,
+            get_settings_word_rank_path(),
+            payload.output_path,
+            matching_wordlist_csv=_existing_path_or_none(payload.matching_wordlist_path),
+        )
         return TextEstimateOut(
             output_path=payload.output_path,
             results=[
@@ -215,6 +219,8 @@ def create_app() -> FastAPI:
                     method=result.method,
                     unique_words=result.unique_words,
                     matched_words=result.matched_words,
+                    ranked_words=result.ranked_words,
+                    unranked_words=result.unranked_words,
                     ignored_words=result.ignored_words,
                 )
                 for result in results
@@ -227,8 +233,6 @@ def create_app() -> FastAPI:
             text_estimates=_read_report_csv("reports/outputs/text_estimates.csv"),
             learner_profiles=_read_report_csv("reports/outputs/learner_profiles.csv"),
             stability_summary=_read_report_csv("reports/outputs/stability_summary.csv"),
-            student_summary=_read_report_csv("reports/outputs/student_summary.csv"),
-            student_correlation=_read_report_json("reports/outputs/student_correlation.json"),
         )
 
     return app
@@ -290,12 +294,3 @@ def _read_report_csv(path: str) -> list[dict[str, str]]:
         return []
     with report_path.open("r", encoding="utf-8", newline="") as handle:
         return list(csv.DictReader(handle))
-
-
-def _read_report_json(path: str) -> dict[str, object]:
-    report_path = Path(path)
-    if not report_path.exists():
-        return {}
-    with report_path.open("r", encoding="utf-8") as handle:
-        data = json.load(handle)
-    return data if isinstance(data, dict) else {}

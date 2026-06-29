@@ -113,6 +113,7 @@ class StabilityExperimentOut(BaseModel):
 class TextEstimateRequest(BaseModel):
     text_paths: list[str] = Field(min_length=1)
     output_path: str = "reports/outputs/text_estimates.csv"
+    matching_wordlist_path: str | None = "data/wordlists/matching_wordlist.csv"
 
 
 class TextEstimateRow(BaseModel):
@@ -124,6 +125,8 @@ class TextEstimateRow(BaseModel):
     method: str
     unique_words: int
     matched_words: int
+    ranked_words: int
+    unranked_words: list[str]
     ignored_words: list[str]
 
 
@@ -136,8 +139,6 @@ class ReportOutputsOut(BaseModel):
     text_estimates: list[dict[str, str]]
     learner_profiles: list[dict[str, str]]
     stability_summary: list[dict[str, str]]
-    student_summary: list[dict[str, str]]
-    student_correlation: dict[str, object]
 
 
 class StudentResultCreate(BaseModel):

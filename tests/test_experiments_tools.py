@@ -6,10 +6,10 @@ import unittest
 from pathlib import Path
 
 from vocab_experiments.batch import run_batch
+from vocab_experiments.education_word_rank import build_education_word_rank, build_matching_wordlist
 from vocab_experiments.learner_profile import estimate_learner_profiles
 from vocab_experiments.report_summary import summarize_stability
 from vocab_experiments.stability import run_stability_experiment
-from vocab_experiments.student_samples import write_student_sample_outputs
 from vocab_experiments.text_estimate import estimate_text_file, estimate_text_files
 from vocab_experiments.word_rank import build_word_rank
 
@@ -32,6 +32,74 @@ class ExperimentsToolsTests(unittest.TestCase):
             self.assertEqual([row["rank"] for row in rows], ["1", "2", "3", "4", "5"])
             self.assertEqual(rows[0]["source"], "fixture")
             self.assertNotEqual(rows[0]["frequency"], "0.0")
+
+    def test_build_education_word_rank_creates_ranked_csv_from_ecdict_tags(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            ecdict = tmp_path / "ecdict.csv"
+            ecdict.write_text(
+                "word,phonetic,definition,translation,pos,collins,oxford,tag,bnc,frq,exchange,detail,audio\n"
+                "society,,,社会,,,,zk gk,100,90,,,\n"
+                "shared,,,共享,,,,gk cet4 gre,5,5,,,\n"
+                "apple,,,苹果,,,,gk,20,10,,,\n"
+                "cancel,,,取消,,,,cet4,0,0,,,\n"
+                "zenith,,,顶点,,,,gre,200,150,,,\n"
+                "a,,,字母,,,,zk,1,1,,,\n"
+                "rare-word,,,短语,,,,gk,2,2,,,\n"
+                "xhtml,,,网页缩写,,,,toefl,1,1,,,\n"
+                "zshops,,,偏词,,,,gre,1,1,,,\n"
+                "abmodality,,,偏词,,,,gre,1,1,,,\n",
+                encoding="utf-8",
+            )
+            output = tmp_path / "word_rank.csv"
+
+            count = build_education_word_rank(ecdict, output)
+
+            self.assertEqual(count, 5)
+            with output.open("r", encoding="utf-8") as handle:
+                rows = list(csv.DictReader(handle))
+            self.assertEqual([row["word"] for row in rows], ["society", "shared", "apple", "cancel", "zenith"])
+            self.assertEqual([row["rank"] for row in rows], ["1", "2", "3", "4", "5"])
+            self.assertEqual(rows[0]["level"], "zk")
+            self.assertEqual(rows[1]["level"], "gk")
+            self.assertEqual(rows[1]["tags"], "gk cet4 gre")
+            self.assertEqual(rows[3]["translation"], "取消")
+            self.assertEqual(rows[4]["level"], "gre")
+            self.assertEqual(set(rows[0]), {
+                "word",
+                "rank",
+                "frequency",
+                "source",
+                "level",
+                "tags",
+                "translation",
+                "bnc",
+                "frq",
+            })
+
+    def test_build_matching_wordlist_creates_full_ecdict_match_set(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            ecdict = tmp_path / "ecdict.csv"
+            ecdict.write_text(
+                "word,phonetic,definition,translation,pos,collins,oxford,tag,bnc,frq,exchange,detail,audio\n"
+                "apple,,,苹果,,,,gk,20,10,,,\n"
+                "algorithm,,,算法,,,,,0,0,,,\n"
+                "algorithms,,,算法复数,,,,,0,0,,,\n"
+                "rare-word,,,短语,,,,,0,0,,,\n"
+                "xhtml,,,网页术语,,,,,0,0,,,\n"
+                "a,,,字母,,,,zk,1,1,,,\n",
+                encoding="utf-8",
+            )
+            output = tmp_path / "matching_wordlist.csv"
+
+            count = build_matching_wordlist(ecdict, output)
+
+            self.assertEqual(count, 5)
+            with output.open("r", encoding="utf-8") as handle:
+                rows = list(csv.DictReader(handle))
+            self.assertEqual([row["word"] for row in rows], ["a", "algorithm", "algorithms", "apple", "xhtml"])
+            self.assertEqual(set(rows[0]), {"word", "source"})
 
     def test_run_batch_reads_responses_and_writes_single_result_row(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -63,7 +131,7 @@ class ExperimentsToolsTests(unittest.TestCase):
                 rows = list(csv.DictReader(handle))
             self.assertEqual(len(rows), 1)
             self.assertEqual(rows[0]["estimate"], "200")
-            self.assertEqual(rows[0]["method"], "rank_midpoint_bootstrap_v1")
+            self.assertEqual(rows[0]["method"], "rank_midpoint_bootstrap_education_v1")
 
     def test_run_stability_experiment_writes_rows_for_each_combination(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -161,6 +229,49 @@ class ExperimentsToolsTests(unittest.TestCase):
                 rows = list(csv.DictReader(handle))
             self.assertEqual(rows[0]["method"], "text_rank_percentile_v1")
 
+    def test_estimate_text_file_uses_matching_wordlist_without_changing_rank_source(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            word_rank = tmp_path / "word_rank.csv"
+            matching_wordlist = tmp_path / "matching_wordlist.csv"
+            text = tmp_path / "sample.txt"
+            output = tmp_path / "text_estimates.csv"
+            word_rank.write_text(
+                "word,rank,frequency,source\n"
+                "change,100,0.0,education\n"
+                "algorithm,1000,0.0,education\n",
+                encoding="utf-8",
+            )
+            matching_wordlist.write_text(
+                "word,source\n"
+                "change,ecdict_full\n"
+                "changes,ecdict_full\n"
+                "algorithm,ecdict_full\n"
+                "algorithms,ecdict_full\n"
+                "blockchain,ecdict_full\n",
+                encoding="utf-8",
+            )
+            text.write_text("Changes algorithms blockchain unknownword.", encoding="utf-8")
+
+            result = estimate_text_file(
+                text,
+                word_rank,
+                matching_wordlist_csv=matching_wordlist,
+                output_csv=output,
+            )
+
+            self.assertEqual(result.estimate, 1000)
+            self.assertEqual(result.ranked_words, 2)
+            self.assertEqual(result.matched_words, 3)
+            self.assertEqual(result.unranked_words, ["blockchain"])
+            self.assertEqual(result.ignored_words, ["unknownword"])
+            with output.open("r", encoding="utf-8") as handle:
+                rows = list(csv.DictReader(handle))
+            self.assertEqual(rows[0]["ranked_words"], "2")
+            self.assertEqual(rows[0]["matched_words"], "3")
+            self.assertEqual(rows[0]["unranked_words"], "blockchain")
+            self.assertEqual(rows[0]["ignored_words"], "unknownword")
+
     def test_estimate_text_files_writes_multiple_rows(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -217,24 +328,6 @@ class ExperimentsToolsTests(unittest.TestCase):
             with output.open("r", encoding="utf-8") as handle:
                 rows = list(csv.DictReader(handle))
             self.assertEqual(rows[0]["learner_class"], "C")
-
-    def test_write_student_sample_outputs_creates_raw_and_summary_csv(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            tmp_path = Path(tmp)
-            raw = tmp_path / "student_samples.csv"
-            summary = tmp_path / "student_summary.csv"
-            correlation = tmp_path / "student_correlation.json"
-
-            rows = write_student_sample_outputs(raw, summary, correlation)
-
-            self.assertEqual(len(rows), 4)
-            self.assertTrue(raw.exists())
-            self.assertTrue(summary.exists())
-            self.assertTrue(correlation.exists())
-            with summary.open("r", encoding="utf-8") as handle:
-                summary_rows = list(csv.DictReader(handle))
-            self.assertEqual(summary_rows[0]["runs"], "3")
-            self.assertIn("cet4_estimate_correlation", correlation.read_text(encoding="utf-8"))
 
     def test_summarize_stability_writes_report_csv_json_and_svg(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

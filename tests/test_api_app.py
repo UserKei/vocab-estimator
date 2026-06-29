@@ -322,12 +322,18 @@ class ApiAppTests(unittest.TestCase):
                     self.assertEqual(text_result["text_path"], str(text_path))
                     self.assertEqual(text_result["unique_words"], 4)
                     self.assertEqual(text_result["matched_words"], 4)
+                    self.assertEqual(text_result["ranked_words"], 4)
+                    self.assertEqual(text_result["unranked_words"], [])
                     self.assertTrue(text_output.exists())
 
                     reports_response = client.get("/api/reports/outputs")
                     self.assertEqual(reports_response.status_code, 200)
-                    self.assertIn("text_estimates", reports_response.json())
-                    self.assertIn("student_correlation", reports_response.json())
+                    reports_payload = reports_response.json()
+                    self.assertIn("text_estimates", reports_payload)
+                    self.assertIn("learner_profiles", reports_payload)
+                    self.assertIn("stability_summary", reports_payload)
+                    self.assertNotIn("student_summary", reports_payload)
+                    self.assertNotIn("student_correlation", reports_payload)
 
 
 class _patched_env:
