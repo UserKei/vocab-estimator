@@ -1,0 +1,7 @@
+{
+  "python.analysis.extraPaths": [
+    "./packages/estimator/src",
+    "./packages/experiments/src",
+    "./apps/api/src"
+  ]
+}
